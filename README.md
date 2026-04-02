@@ -59,7 +59,7 @@ EB-Manipulation 依赖 **CoppeliaSim**、**PyRep** 以及 `requirements_eb_manip
 
 远程 VLM 还需配置各厂商 API Key（与原 `remote_model.py` 相同）。
 
-## 同事接入指南（英文注释在源码中）
+## 接入指南（英文注释在源码中）
 
 1. **Perception**：实现 `PerceptionInterface.extract_features`，返回形状为 `(T, P, D)` 的 `numpy.ndarray`（`float32`），并在策略循环里调用 `EmbodiedManipulationMemorySystem.on_perception_features` 或 `run_perception`。
 2. **Simulation**：实现 `SimulationInterface.predict`，从 `long_term.conceptual` 或 `working` 快照读取状态摘要，返回预测轨迹/接触等。
@@ -80,6 +80,4 @@ mem = EmbodiedManipulationMemorySystem(
 
 评测入口默认使用 `Null*` 桩。若在配置里传入 `arch_memory_instance=EmbodiedManipulationMemorySystem(..., perception=..., simulation=..., monitor=...)`，则会使用该实例并忽略默认构造。
 
-## 许可与致谢
 
-根目录 `LICENSE` 说明了本包新增部分（含 `memory_manip`）的 **MIT** 条款，以及对上游 **EmbodiedBench** 的归属说明。另附 `LICENSE_ALFRED_MIT.txt`（从本地 EmbodiedBench 拷贝的 ALFRED 侧 MIT 文本，便于对照）。仿真与任务代码仍以你获取上游代码时的许可为准。
