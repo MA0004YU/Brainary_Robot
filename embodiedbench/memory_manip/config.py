@@ -28,3 +28,7 @@ class MemorySystemConfig:
     rig_metadata: Dict[str, Any] = field(default_factory=dict)
 
     checkpoint_path: Optional[str] = None
+
+    # EmbodiedLTM service settings.
+    embodiedltm_base_url: str = "http://127.0.0.1:8000"
+    embodiedltm_timeout_sec: float = 8.0

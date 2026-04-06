@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+python-multipart
+openai
+numpy
+Pillow
+requests
+json_repair
+pipmaster
+nano_vectordb
+tiktoken
+networkx
+dotenv
+tenacity

@@ -40,6 +40,10 @@ class EmbodiedManipulationMemorySystem:
         self.config = config or MemorySystemConfig()
         self.working = ManipulationWorkingMemory.from_config(self.config)
         self.long_term = ManipulationLongTermMemory()
+        self.long_term.configure_embodiedltm(
+            base_url=self.config.embodiedltm_base_url,
+            timeout_sec=self.config.embodiedltm_timeout_sec,
+        )
 
         self.perception = perception or NullPerception()
         self.simulation = simulation or NullSimulation()
@@ -78,6 +82,13 @@ class EmbodiedManipulationMemorySystem:
         self.long_term.temporal.record_episode_summary(summary)
         if self.config.auto_consolidate_on_episode_end:
             self.consolidate_to_long_term(episode_summary=summary)
+        self.long_term.insert_longterm_memory(summary)
+
+    def query_longterm_memory(self, query: str) -> Dict[str, Any]:
+        """
+        Query EmbodiedLTM.
+        """
+        return self.long_term.remote_query(query)
 
     # --- perception hook ---------------------------------------------------
     def on_perception_features(
