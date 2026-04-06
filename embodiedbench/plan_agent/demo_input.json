@@ -1,0 +1,50 @@
+{
+  "raw_input": "Given the candidate paths from node S to node G, determine the best feasible path. The objective is to minimize total cost while satisfying the safety constraint. Total cost is defined as: total_cost = travel_time + 2 * risk + 0.5 * energy. Any path with risk greater than 6 is infeasible. Please identify the optimal path and explain the reasoning.",
+  "context": {
+    "domain": "constrained optimization",
+    "task_type": "path selection",
+    "start_location": "S",
+    "target_location": "G",
+    "cost_function": "total_cost = travel_time + 2 * risk + 0.5 * energy",
+    "hard_constraints": [
+      "risk <= 6"
+    ],
+    "candidate_paths": [
+      {
+        "path_id": "P1",
+        "route": ["S", "A", "C", "G"],
+        "travel_time": 10,
+        "risk": 4,
+        "energy": 8
+      },
+      {
+        "path_id": "P2",
+        "route": ["S", "B", "D", "G"],
+        "travel_time": 8,
+        "risk": 7,
+        "energy": 7
+      },
+      {
+        "path_id": "P3",
+        "route": ["S", "E", "F", "G"],
+        "travel_time": 12,
+        "risk": 3,
+        "energy": 6
+      },
+      {
+        "path_id": "P4",
+        "route": ["S", "H", "G"],
+        "travel_time": 9,
+        "risk": 5,
+        "energy": 10
+      }
+    ],
+    "objective": [
+      "minimize total cost",
+      "satisfy risk constraint",
+      "return the best feasible path"
+    ]
+  },
+  "constraints": [],
+  "expected_output": "task_plan"
+}
