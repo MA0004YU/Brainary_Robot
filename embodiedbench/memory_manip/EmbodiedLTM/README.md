@@ -1,6 +1,6 @@
-# MemVerse（Embodied LTM）
+Embodied LTM
 
-MemVerse 是一个面向 **Brainary_Robot** 的长期记忆系统，支持多模态输入（文本 / 图像 / 视频 / 音频）写入，并通过记忆检索增强问答能力。
+Embodied LTM 是一个面向 **Brainary_Robot** 的长期记忆系统，支持多模态输入（文本 / 图像 / 视频 / 音频）写入，并通过记忆检索增强问答能力。
 
 当前服务基于 FastAPI，核心能力由 LightRAG + OpenAI 接口驱动。
 
@@ -66,7 +66,7 @@ curl -X POST "http://127.0.0.1:8000/query" \
 │   └── Long_Term_Memory/
 │       ├── Graph_Construction/    # LightRAG 图构建与检索
 │       ├── memory_chunks/         # 记忆切片结果
-│       └── system/                # 系统级记忆规则文件
+│       └── system/                # 记忆规则文件
 └── README.md
 ```
 
