@@ -22,6 +22,8 @@ simulation/
 │   │       ├── panda.urdf          # 真实的弗兰卡机械臂 URDF 文件
 │   │       ├── panda.srdf          # mplib 避障运动规划器必须的机器人语义碰撞对描述文件
 │   │       └── meshes/             # URDF 对应的碰撞和视觉凸包 .obj 文件
+│   │           ├── visual/         # 存放 link0.obj ~ link7.obj, hand.obj, finger.obj
+│   │           └── collision/      # 存放用于碰撞的轻量化 obj（通常与 visual 相同或更简化）
 │   └── meshes/                     # 单位归一化几何体（如 1mx1mx1m 的 unit_cube.obj），专供视觉管道动态缩放
 │       └── unit_cube.obj           # 1x1x1 归一化标准底片，供 FP 动态缩放
 │
