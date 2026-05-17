@@ -1,0 +1,46 @@
+Simulation/
+│
+├── config/
+│   └── global_config.yaml          # 变量：统一管理力学红线、机器人内参、相机参数与 API 密钥
+│
+├── cache/                          # 专门存放 DUST3R 在线实时生成的异形环境件（如收纳柜的凹共形 .obj 文件）
+│
+├── assets/                         # 静态先验资产（只读）
+│   ├── robots/                     # 存放机械臂的 URDF 描述文件及关节动力学限制
+│   └── meshes/                     # 单位归一化几何体（如 1mx1mx1m 的 unit_cube.obj），专供视觉管道动态缩放
+│
+├── src/                            
+│   ├── __init__.py
+│   │
+│   ├── perception/                 # 双轨制视觉几何计算
+│   │   ├── __init__.py
+│   │   ├── pipeline.py             # 封装类 PerceptionPipeline，串联胶水层，对外吐出标准几何 JSON
+│   │   │
+│   │   ├── wrappers/               # 负责调度第三方库，并将异构输出统一翻译为标准数据流
+│   │   │   ├── __init__.py
+│   │   │   ├── cg_wrapper.py       # 驱动 ConceptGraphs，进行实例分割并提取方块类目标的 3D OBB 大小
+│   │   │   ├── dust3r_wrapper.py   # 驱动 DUST3R，生成时序密集点云，完成表面重建后写入 cache/ 目录
+│   │   │   └── fp_wrapper.py       # 载入 meshes/ 底片进行动态尺寸缩放，驱动 FoundationPose 做 6DoF 像素级精炼对齐
+│   │   │
+│   │   └── third_party/            # 第三方原生源码库
+│   │       ├── ConceptGraphs/      # 原生 ConceptGraphs 仓库主目录
+│   │       ├── dust3r/             # 原生 DUST3R 仓库主目录
+│   │       └── FoundationPose/     # 原生 FoundationPose 仓库主目录
+│   │
+│   ├── simulator/                  # SAPIEN 仿真
+│   │   ├── __init__.py
+│   │   ├── scene_builder.py        # 接收视觉 JSON，查阅物理字典，动态解算实/空心质量与均匀摩擦力，执行高阻尼沉降消穿模
+│   │   ├── robot_controller.py     # 机械臂控制中枢，负责逆运动学（IK）前置校验与宏观技能基元（Skills）的开环翻译执行
+│   │   └── detectors.py            # 内含 4 类硬编码的 Dataclass 反馈结构体，负责高频监听与动态剪枝熔断
+│   │
+│   ├── memory/                     # 记忆与反思提炼模块 
+│   │   ├── __init__.py
+│   │   ├── physics_dictionary.py   # 只读材料属性库（仅存放：密度、均匀摩擦系数、刚度最大承受力上限）
+│   │   ├── working_memory.py       # 动态内存 RAM，追踪并缓存（Task Context、当前 Scene Graph、历史失败动作链）
+│   │   └── principle_extractor.py  # 驱动专属领域大模型，结合白盒反馈与 Working Memory，提炼带场景约束的剪枝 Principle
+│   │
+│   └── plan/                       # 长序列开环规划模块
+│       ├── __init__.py
+│       └── llm_planner.py          # 初始时单次输出完整动作计划；被动唤醒后，利用剪枝 Principle 进行局部重规划
+│
+└── main.py                         # 主事件循环调度
