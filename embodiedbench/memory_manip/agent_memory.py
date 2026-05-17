@@ -1,8 +1,34 @@
 """
-Orchestrates working memory, long-term memory, consolidation (WM -> LTM), and I/O stubs.
+EmbodiedManipulationMemorySystem: top-level three-layer memory facade.
+
+Layer data flow:
+  Perception     -> working.observation  (scene embedding, visible objects)
+  GoalReasoner   -> working.goal         (instruction, 5-Whys intent)
+  SolutionSpace  -> working.observation  (visible/memory objects, location)
+  TaskValidator  -> working.action_buffer (action + outcome per step)
+  Real robot     -> working.robot_state  (gripper pose, joints, force/torque)
+
+At episode end:
+  working   -> episodic  (full trajectory saved via consolidate_episode)
+  episodic  -> semantic  (batch generalization every N episodes)
+
+Planning_agent bridge (read-only):
+  persistent_memory.md  -> semantic (user prefs, scene knowledge)
+  session_context.md    -> working  (goal intent, visited locations)
+
+Public API is backward-compatible with the previous EmbodiedManipulationMemorySystem:
+  reset_episode, begin_task, end_episode,
+  on_perception_features, run_perception,
+  record_planner_reasoning, record_discrete_action, record_environment_feedback,
+  propose_simulated_outcome, run_monitor,
+  query_longterm_memory, snapshot.
 """
 from __future__ import annotations
 
+import json
+import time
+import uuid
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
@@ -16,17 +42,20 @@ from embodiedbench.memory_manip.interfaces import (
     PerceptionInterface,
     SimulationInterface,
 )
-from embodiedbench.memory_manip.longterm_memory import ManipulationLongTermMemory
-from embodiedbench.memory_manip.working_memory import ManipulationWorkingMemory
+from embodiedbench.memory_manip.working_memory import WorkingMemory
+from embodiedbench.memory_manip.episodic_memory import EpisodicMemory, EpisodeRecord, StepRecord
+from embodiedbench.memory_manip.semantic_memory import SemanticMemory
+from embodiedbench.memory_manip.longterm_memory import EmbodiedLTMClient
+from embodiedbench.memory_manip.bridges import PlanningAgentBridge
 
 
 class EmbodiedManipulationMemorySystem:
     """
-    Top-level memory facade for EB-Manipulation (and future real-robot deployments).
+    Three-layer memory system for embodied manipulation.
 
-    Data flow (conceptual): perception -> working memory (semantic + 3D lanes),
-    planner symbols -> symbolic/abstract lanes, consolidation -> LTM compartments.
-    simulation / monitor hooks read/write conceptual LTM and working snapshots.
+    Compatible with both EmbodiedBench simulation and real-robot deployments.
+    External perception / simulation / monitor modules plug in via the same
+    interface stubs as before; this class never imports from them directly.
     """
 
     def __init__(
@@ -38,32 +67,67 @@ class EmbodiedManipulationMemorySystem:
         monitor: Optional[MonitorInterface] = None,
     ) -> None:
         self.config = config or MemorySystemConfig()
-        self.working = ManipulationWorkingMemory.from_config(self.config)
-        self.long_term = ManipulationLongTermMemory()
-        self.long_term.configure_embodiedltm(
+        store = self.config.get_store_dir()
+        store.mkdir(parents=True, exist_ok=True)
+
+        # Three memory layers
+        self.working = WorkingMemory.from_config(self.config)
+        self.episodic = EpisodicMemory(
+            store_path=store / "episodes.jsonl",
+            max_episodes=self.config.episodic_max_episodes,
+        )
+        self.semantic = SemanticMemory(store_path=store / "semantic_kb.json")
+
+        # Optional remote EmbodiedLTM service
+        self._ltm_client = EmbodiedLTMClient(
             base_url=self.config.embodiedltm_base_url,
             timeout_sec=self.config.embodiedltm_timeout_sec,
         )
 
+        # External I/O stubs (unchanged interface)
         self.perception = perception or NullPerception()
         self.simulation = simulation or NullSimulation()
         self.monitor = monitor or NullMonitor()
 
-        self._last_instruction: str = ""
-        self._last_task_variation: str = ""
+        # Planning_agent bridge (read-only)
+        self._bridge = PlanningAgentBridge(self.config.planning_agent_dir)
 
-    # --- episode lifecycle -------------------------------------------------
-    def reset_episode(self) -> None:
-        """Call when the gym env resets."""
-        self.working.clear_volatile()
+        # Episode-level bookkeeping
+        self._episode_id: str = ""
+        self._scene_id: str = ""
+        self._episode_start_time: float = 0.0
+        self._episodes_since_generalize: int = 0
+        self._pending_generalization: List[EpisodeRecord] = []
 
-    def begin_task(self, instruction: str, task_variation: str) -> None:
-        """Seed abstract working memory with language instruction metadata."""
-        self._last_instruction = instruction
-        self._last_task_variation = task_variation
-        self.working.abstract.push_note(f"instruction:{instruction}")
-        self.working.abstract.push_note(f"variation:{task_variation}")
-        self.working.task_schedule.add_milestone("task_start")
+    # -----------------------------------------------------------------------
+    # Episode lifecycle
+    # -----------------------------------------------------------------------
+
+    def reset_episode(self, scene_id: str = "") -> None:
+        """Call when the gym env resets. Clears volatile working memory."""
+        self._episode_id = str(uuid.uuid4())[:8]
+        self._scene_id = scene_id
+        self._episode_start_time = time.time()
+        self.working.clear_episode()
+
+    def begin_task(
+        self,
+        instruction: str,
+        task_variation: str = "",
+        intent: Dict[str, Any] = None,
+    ) -> None:
+        """
+        Seed working memory with the task instruction.
+
+        intent: optional GoalReasoner output dict (target_object, deep_intent, …).
+        """
+        self.working.goal.set(
+            instruction=instruction,
+            task_variation=task_variation,
+            intent=intent or {},
+            alternatives=(intent or {}).get("acceptable_alternatives_properties", []),
+        )
+        self.working.clock.add_milestone("task_start")
 
     def end_episode(
         self,
@@ -71,140 +135,267 @@ class EmbodiedManipulationMemorySystem:
         success: bool,
         extra: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Optional consolidation at episode end."""
-        summary = {
-            "instruction": self._last_instruction,
-            "variation": self._last_task_variation,
-            "success": success,
-            "working_global_step": self.working.task_schedule.global_step,
-            **(extra or {}),
-        }
-        self.long_term.temporal.record_episode_summary(summary)
-        if self.config.auto_consolidate_on_episode_end:
-            self.consolidate_to_long_term(episode_summary=summary)
-        self.long_term.insert_longterm_memory(summary)
-
-    def query_longterm_memory(self, query: str) -> Dict[str, Any]:
         """
-        Query EmbodiedLTM.
-        """
-        return self.long_term.remote_query(query)
+        Consolidate working memory into episodic memory at episode end.
 
-    # --- perception hook ---------------------------------------------------
+        Triggers semantic generalization every N episodes.
+        Sends a lightweight summary to the EmbodiedLTM remote service.
+        """
+        duration = time.time() - self._episode_start_time
+
+        record = EpisodeRecord(
+            episode_id=self._episode_id,
+            task_instruction=self.working.goal.instruction,
+            task_variation=self.working.goal.task_variation,
+            scene_id=self._scene_id,
+            success=success,
+            total_steps=self.working.clock.episode_step,
+            duration_sec=round(duration, 2),
+            intent=self.working.goal.intent,
+            extra=extra or {},
+        )
+
+        # Populate step records from the action buffer
+        for ar in self.working.action_buffer.records:
+            record.add_step(StepRecord(
+                step_idx=ar.step,
+                obs_summary=self.working.observation.text[:200],
+                visible_objects=list(self.working.observation.visible_objects),
+                current_location=self.working.observation.current_location,
+                action=ar.action,
+                action_id=ar.action_id,
+                success=ar.success,
+                feedback=ar.feedback,
+                reasoning=ar.reasoning,
+            ))
+
+        self.episodic.save_episode(record)
+        self._pending_generalization.append(record)
+        self._episodes_since_generalize += 1
+
+        # Batch generalization: episodic -> semantic every N episodes
+        if self._episodes_since_generalize >= self.config.episodic_generalize_every_n:
+            self.semantic.generalize_from_episodes(self._pending_generalization)
+            self._pending_generalization.clear()
+            self._episodes_since_generalize = 0
+
+        # Push lightweight summary to optional remote EmbodiedLTM service
+        self._ltm_client.insert_memory(
+            query_text=json.dumps(
+                {
+                    "instruction": self.working.goal.instruction,
+                    "episode_id": self._episode_id,
+                    "success": success,
+                },
+                ensure_ascii=False,
+            )
+        )
+
+    # -----------------------------------------------------------------------
+    # Planning_agent bridge
+    # -----------------------------------------------------------------------
+
+    def sync_from_planning_agent(self) -> Dict[str, Any]:
+        """
+        Pull user preferences and scene knowledge from Planning_agent MD files.
+
+        Call once at session start. Never modifies Planning_agent files.
+        Returns a status dict describing what was synced.
+        """
+        return self._bridge.sync(self.working, self.semantic)
+
+    # -----------------------------------------------------------------------
+    # Perception hook
+    # -----------------------------------------------------------------------
+
     def on_perception_features(
         self,
         features: np.ndarray,
         *,
         meta: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Ingest (T,P,D) tensor: pool into working memory semantic/3D lanes.
-
-        Default policy: mean-pool over T,P -> vector stored in spatial_3d.scene_embedding;
-        store a lightweight semantic fact with shape metadata for traceability.
-        """
+        """Ingest a (T, P, D) float32 feature array into working memory."""
         arr = np.asarray(features, dtype=np.float32)
         if arr.ndim != 3:
-            raise ValueError(f"Expected perception features of shape (T,P,D), got {arr.shape}")
-        pooled = arr.mean(axis=(0, 1))
-        self.working.spatial_3d.set_scene_embedding(pooled)
-        fact: Dict[str, Any] = {
-            "type": "perception_grid",
-            "shape": list(arr.shape),
-            "meta": meta or {},
-        }
-        self.working.semantic.add_fact(fact)
+            raise ValueError(f"Expected (T, P, D) array, got shape {arr.shape}")
+        self.working.observation.update_features(arr)
 
     def run_perception(self, observation: Any) -> np.ndarray:
-        """Pull features from the perception module and ingest them."""
+        """Pull features from the perception module and ingest into working memory."""
         feats = self.perception.extract_features(observation)
         self.on_perception_features(feats)
         return feats
 
-    # --- planner / control hooks -------------------------------------------
+    # -----------------------------------------------------------------------
+    # Working memory update hooks
+    # -----------------------------------------------------------------------
+
+    def update_observation(
+        self,
+        visible_objects: List[str] = None,
+        memory_objects: Dict[str, Any] = None,
+        text: str = None,
+        current_location: str = None,
+        visited_locations: Dict[str, str] = None,
+        held_object: Optional[str] = None,
+    ) -> None:
+        """Push SolutionSpaceAnalyzer outputs into working memory observation."""
+        self.working.observation.update_scene(
+            visible_objects=visible_objects,
+            memory_objects=memory_objects,
+            text=text,
+            current_location=current_location,
+            visited_locations=visited_locations,
+            held_object=held_object,
+        )
+
+    def record_action(
+        self,
+        action: str,
+        action_id: Any,
+        success: Optional[bool] = None,
+        feedback: str = "",
+        reasoning: str = "",
+    ) -> None:
+        """Record an executed action and its outcome; advance the task clock."""
+        self.working.action_buffer.record(
+            step=self.working.clock.episode_step,
+            action=action,
+            action_id=action_id,
+            success=success,
+            feedback=feedback,
+            reasoning=reasoning,
+        )
+        self.working.clock.tick()
+
+    def record_goal_intent(self, intent: Dict[str, Any]) -> None:
+        """Push GoalReasoner output into the working memory goal slot."""
+        self.working.goal.intent = intent
+        self.working.goal.alternatives = intent.get("acceptable_alternatives_properties", [])
+
+    def update_robot_state(
+        self,
+        gripper_pose: Optional[np.ndarray] = None,
+        joint_angles: Optional[np.ndarray] = None,
+        force_torque: Optional[np.ndarray] = None,
+        gripper_aperture: Optional[float] = None,
+        timestamp: Optional[float] = None,
+    ) -> None:
+        """Update proprioceptive state. No-op in simulation (all args None)."""
+        self.working.robot_state.update(
+            gripper_pose=gripper_pose,
+            joint_angles=joint_angles,
+            force_torque=force_torque,
+            gripper_aperture=gripper_aperture,
+            timestamp=timestamp,
+        )
+
+    # --- backward-compatible aliases ---------------------------------------
+
     def record_planner_reasoning(self, reasoning_text: str) -> None:
-        """Attach latest language reasoning to abstract WM."""
+        """Backward-compatible alias: store reasoning text in the goal slot."""
         if reasoning_text:
-            self.working.abstract.push_note(reasoning_text[:2000])
+            existing = self.working.goal.intent.get("reasoning_text", "")
+            self.working.goal.intent["reasoning_text"] = (existing + " " + reasoning_text).strip()
 
     def record_discrete_action(self, action_vector: Union[List[float], np.ndarray]) -> None:
-        """Log a manipulation step into symbolic + spatial buffers."""
+        """Backward-compatible alias: log a raw action vector as a step."""
         act = np.asarray(action_vector, dtype=np.float32).reshape(-1)
-        sym = ",".join(str(int(x)) if float(x).is_integer() else f"{x:.3f}" for x in act.tolist())
-        self.working.symbolic.push(f"act[{sym}]")
-        self.working.spatial_3d.push_pose(act[: min(3, act.shape[0])])
-        self.working.task_schedule.tick()
+        sym = ",".join(
+            str(int(x)) if float(x).is_integer() else f"{x:.3f}" for x in act.tolist()
+        )
+        self.record_action(action=f"act[{sym}]", action_id=sym)
+        # Also push gripper-relevant xyz into robot_state for real-robot readiness
+        if act.shape[0] >= 3:
+            self.working.robot_state.update(gripper_pose=act[:6] if act.shape[0] >= 6 else None)
 
     def record_environment_feedback(self, info: Dict[str, Any]) -> None:
-        """Fold env info dict into semantic facts (success bits, messages)."""
-        slim = {k: info[k] for k in ("task_success", "action_success") if k in info}
-        if slim:
-            self.working.semantic.add_fact({"type": "env_feedback", **slim})
+        """Backward-compatible alias: fold env info dict into the last action record."""
+        task_success = info.get("task_success")
+        action_success = info.get("action_success")
+        feedback_str = f"task_success={task_success} action_success={action_success}"
+        if self.working.action_buffer.records:
+            last = self.working.action_buffer.records[-1]
+            last.success = bool(action_success) if action_success is not None else last.success
+            last.feedback = feedback_str
+        self.working.clock.add_milestone(f"env_feedback:{feedback_str[:60]}")
 
-    # --- simulation / monitor hooks --------------------------------------
+    # -----------------------------------------------------------------------
+    # Semantic memory query API
+    # -----------------------------------------------------------------------
+
+    def query_object(self, obj: str) -> Dict[str, Any]:
+        """Return object affordances and historical locations from semantic memory."""
+        return self.semantic.query_object(obj)
+
+    def query_user_preference(self, need: str) -> Dict[str, Any]:
+        """Return user preferences for a functional need from semantic memory."""
+        return self.semantic.query_user_preference(need)
+
+    def query_task_schema(self, instruction: str) -> Dict[str, Any]:
+        """Return historical success rate and common steps for similar tasks."""
+        return self.semantic.query_task_schema(instruction)
+
+    # -----------------------------------------------------------------------
+    # Episodic memory query API
+    # -----------------------------------------------------------------------
+
+    def query_similar_episodes(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
+        """Return lightweight summaries of past episodes similar to query."""
+        records = self.episodic.query_similar(query, top_k=top_k)
+        return [
+            {
+                "episode_id": r.episode_id,
+                "task_instruction": r.task_instruction,
+                "success": r.success,
+                "total_steps": r.total_steps,
+                "objects_encountered": list(r.objects_encountered.keys()),
+            }
+            for r in records
+        ]
+
+    def get_object_location_history(self, obj: str) -> Dict[str, int]:
+        """Return {location: frequency} for an object across all stored episodes."""
+        return self.episodic.get_object_location_history(obj)
+
+    # -----------------------------------------------------------------------
+    # Simulation / monitor hooks (unchanged interface)
+    # -----------------------------------------------------------------------
+
     def propose_simulated_outcome(
         self, action: Any, *, horizon: int = 1
     ) -> Dict[str, Any]:
-        """Route through conceptual WM + simulation stub."""
-        state_summary = {
-            "instruction": self._last_instruction,
-            "variation": self._last_task_variation,
-            "entities": len(self.long_term.conceptual.entities),
-        }
+        """Route action through the simulation stub."""
+        state_summary = self.working.snapshot()
         return self.simulation.predict(state_summary, action, horizon=horizon)
 
     def run_monitor(self, observation: Any) -> bool:
+        """Run the monitor stub; log any alert into the task clock milestones."""
         snap = self.snapshot()
         ok, msg = self.monitor.check(observation, snap)
         if not ok and msg:
-            self.working.semantic.add_fact({"type": "monitor_alert", "message": msg})
+            self.working.clock.add_milestone(f"monitor_alert:{msg[:80]}")
         return ok
 
-    # --- consolidation -----------------------------------------------------
-    def consolidate_to_long_term(self, *, episode_summary: Dict[str, Any]) -> None:
-        """
-        Project working-memory traces into persistent structures.
+    # -----------------------------------------------------------------------
+    # Remote LTM query (backward-compatible)
+    # -----------------------------------------------------------------------
 
-        This reference implementation only sketches the mapping; extend with your
-        embedding models / graph learners.
-        """
-        # Conceptual: anchor entity for current task variation
-        eid = f"task::{episode_summary.get('variation', 'unknown')}"
-        self.long_term.conceptual.upsert_entity(
-            eid,
-            {
-                "instruction": episode_summary.get("instruction"),
-                "last_success": episode_summary.get("success"),
-            },
-        )
+    def query_longterm_memory(self, query: str) -> Dict[str, Any]:
+        """Forward a query to the optional EmbodiedLTM remote service."""
+        return self._ltm_client.query_memory(query)
 
-        # Spatial: connect last poses as a short chain
-        poses = self.working.spatial_3d.snapshot_poses()
-        for i, p in enumerate(poses[-8:]):
-            nid = f"{eid}::pose::{episode_summary.get('working_global_step', 0)}::{i}"
-            self.long_term.spatial.add_node(nid, {"xyz": p.tolist()})
-            if i:
-                prev = f"{eid}::pose::{episode_summary.get('working_global_step', 0)}::{i-1}"
-                self.long_term.spatial.add_edge(prev, nid, {"kind": "trajectory"})
+    # -----------------------------------------------------------------------
+    # Snapshot / inspection
+    # -----------------------------------------------------------------------
 
-    # --- inspection --------------------------------------------------------
     def snapshot(self) -> Dict[str, Any]:
-        """JSON-friendly dict for logging, monitor, or debugging."""
+        """Full JSON-serializable snapshot for logging, monitor, or debugging."""
         return {
-            "working": {
-                "symbolic": self.working.symbolic.snapshot(),
-                "abstract": self.working.abstract.snapshot(),
-                "semantic": self.working.semantic.snapshot(),
-                "spatial_poses": [p.tolist() for p in self.working.spatial_3d.snapshot_poses()],
-                "scene_embedding": None
-                if self.working.spatial_3d.scene_embedding is None
-                else self.working.spatial_3d.scene_embedding.tolist(),
-                "task_schedule": self.working.task_schedule.snapshot(),
-            },
-            "long_term": {
-                "conceptual_entities": list(self.long_term.conceptual.entities.keys()),
-                "temporal_episodes": len(self.long_term.temporal.episodes),
-                "spatial_nodes": len(self.long_term.spatial.nodes),
-            },
+            "episode_id": self._episode_id,
+            "scene_id": self._scene_id,
+            "working": self.working.snapshot(),
+            "episodic": self.episodic.summary(),
+            "semantic": self.semantic.summary(),
             "rig": self.config.rig_metadata,
         }
