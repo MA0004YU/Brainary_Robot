@@ -1,0 +1,5 @@
+# Ignore all persistent memory data files generated at runtime.
+# These are machine-local and should not be committed.
+episodes.jsonl
+semantic_kb.json
+semantic_kb.tmp
