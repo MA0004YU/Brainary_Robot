@@ -1,34 +1,47 @@
-"""Configuration for the manipulation memory stack."""
+"""Configuration for the three-layer manipulation memory stack."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 
 @dataclass
 class MemorySystemConfig:
-    """Tunable knobs for buffers, consolidation, and optional persistence."""
+    # --- Working Memory ---
+    action_buffer_max: int = 32
+    observation_history_max: int = 16
+    episode_max_steps: int = 50
 
-    # Cap how many discrete items are kept per working-memory lane before FIFO eviction.
-    symbolic_queue_max: int = 64
-    abstract_queue_max: int = 32
-    semantic_fact_max: int = 128
-    spatial_3d_pose_max: int = 32
-    task_event_max: int = 64
+    # --- Episodic Memory ---
+    episodic_max_episodes: int = 1000
+    # Batch generalization: push episodic -> semantic every N completed episodes
+    episodic_generalize_every_n: int = 5
 
-    # Long-term graph limits (nodes / edges) — coarse guards for prototyping.
-    conceptual_entity_cap: int = 512
-    temporal_event_cap: int = 2048
-    spatial_node_cap: int = 1024
+    # --- Semantic Memory ---
+    semantic_object_cap: int = 512
+    semantic_location_cap: int = 256
 
-    # When True, `consolidate_to_long_term` writes summaries into LTM structures.
+    # --- Persistence ---
+    # None = default to <package_dir>/store/
+    store_dir: Optional[str] = None
+
+    # --- Consolidation ---
     auto_consolidate_on_episode_end: bool = True
 
-    # Optional JSON-serializable metadata for sim2real (robot name, workspace ID, etc.).
+    # --- Real-robot metadata ---
     rig_metadata: Dict[str, Any] = field(default_factory=dict)
+    robot_dof: int = 6
 
-    checkpoint_path: Optional[str] = None
+    # --- Planning_agent bridge ---
+    # Path to the Planning_agent directory; None = auto-detect sibling dir
+    planning_agent_dir: Optional[str] = None
 
-    # EmbodiedLTM service settings.
+    # --- EmbodiedLTM remote service ---
     embodiedltm_base_url: str = "http://127.0.0.1:8000"
     embodiedltm_timeout_sec: float = 8.0
+
+    def get_store_dir(self) -> Path:
+        if self.store_dir:
+            return Path(self.store_dir)
+        return Path(__file__).parent / "store"
