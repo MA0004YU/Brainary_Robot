@@ -1,8 +1,15 @@
 """
-Architectural memory for EB-Manipulation: working memory, long-term memory, and I/O interfaces.
+Three-layer memory system for embodied manipulation.
 
-Matches the embodied-agent memory schematic (symbolic / abstract / semantic / 3D working buffers;
-conceptual, temporal, spatial long-term stores; perception / simulation / monitor ports).
+Layers:
+  WorkingMemory   - volatile per-episode state (goal, observation, actions, robot state)
+  EpisodicMemory  - persistent episode records with JSONL storage and retrieval
+  SemanticMemory  - persistent world knowledge (objects, preferences, task schemata, topology)
+
+Entry point: EmbodiedManipulationMemorySystem (agent_memory.py)
+Configuration: MemorySystemConfig (config.py)
+I/O interfaces: PerceptionInterface, SimulationInterface, MonitorInterface (interfaces.py)
+Planning_agent bridge: PlanningAgentBridge (bridges.py)
 """
 from embodiedbench.memory_manip.config import MemorySystemConfig
 from embodiedbench.memory_manip.agent_memory import EmbodiedManipulationMemorySystem
@@ -11,6 +18,10 @@ from embodiedbench.memory_manip.interfaces import (
     SimulationInterface,
     MonitorInterface,
 )
+from embodiedbench.memory_manip.working_memory import WorkingMemory
+from embodiedbench.memory_manip.episodic_memory import EpisodicMemory, EpisodeRecord, StepRecord
+from embodiedbench.memory_manip.semantic_memory import SemanticMemory
+from embodiedbench.memory_manip.bridges import PlanningAgentBridge
 
 __all__ = [
     "MemorySystemConfig",
@@ -18,4 +29,10 @@ __all__ = [
     "PerceptionInterface",
     "SimulationInterface",
     "MonitorInterface",
+    "WorkingMemory",
+    "EpisodicMemory",
+    "EpisodeRecord",
+    "StepRecord",
+    "SemanticMemory",
+    "PlanningAgentBridge",
 ]
