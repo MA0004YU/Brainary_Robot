@@ -153,7 +153,7 @@ Monitor/
 
 ## 当前限制
 
-- 每步调用 LLM 判断，延迟约 1-3 秒
+- 每步调用 LLM 判断，延迟约 1-3 秒（正在开发scene safety parser模块，待更新）
 - 场景信息依赖 `visible_objects` 列表，尚未接入完整 scene graph
 - 安全规则库为静态 20 条，未实现动态检索
 - OOD 检测、约束生成等模块尚未实现（返回默认值）
