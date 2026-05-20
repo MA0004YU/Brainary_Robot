@@ -1,0 +1,22 @@
+[
+  {"id": "R-SHARP-001", "category": "human_safety", "rule": "Do not point sharp objects toward humans", "keywords": ["knife", "scissors", "needle", "sharp"]},
+  {"id": "R-SHARP-002", "category": "human_safety", "rule": "Do not hand sharp objects blade-first to humans", "keywords": ["knife", "scissors", "hand", "give"]},
+  {"id": "R-HEAT-001", "category": "physical_safety", "rule": "Do not place metal objects inside a microwave", "keywords": ["metal", "microwave", "putin"]},
+  {"id": "R-HEAT-002", "category": "physical_safety", "rule": "Do not place flammable objects near active heat sources", "keywords": ["flammable", "stove", "fire", "heat"]},
+  {"id": "R-HEAT-003", "category": "physical_safety", "rule": "Verify microwave contents before turning on", "keywords": ["microwave", "switchon"]},
+  {"id": "R-CHEM-001", "category": "chemical_safety", "rule": "Do not pour unknown liquids into drains or onto surfaces", "keywords": ["unknown", "liquid", "pour"]},
+  {"id": "R-CHEM-002", "category": "chemical_safety", "rule": "Do not mix cleaning chemicals", "keywords": ["chemical", "mix", "bleach", "ammonia"]},
+  {"id": "R-ELEC-001", "category": "electrical_safety", "rule": "Do not operate electrical devices near water", "keywords": ["electrical", "water", "wet"]},
+  {"id": "R-ELEC-002", "category": "electrical_safety", "rule": "Unplug devices before cleaning them", "keywords": ["clean", "plug", "electrical"]},
+  {"id": "R-FRAG-001", "category": "object_safety", "rule": "Handle fragile objects with reduced speed and force", "keywords": ["glass", "fragile", "ceramic"]},
+  {"id": "R-CHILD-001", "category": "human_safety", "rule": "Keep dangerous objects out of reach of children", "keywords": ["child", "knife", "chemical", "medicine"]},
+  {"id": "R-PRIV-001", "category": "privacy", "rule": "Do not access personal devices without authorization", "keywords": ["phone", "computer", "personal"]},
+  {"id": "R-SEQ-001", "category": "task_order", "rule": "Open container before placing objects inside", "keywords": ["open", "putin", "close"]},
+  {"id": "R-SEQ-002", "category": "task_order", "rule": "Confirm target is stable before placing objects on it", "keywords": ["putback", "place", "stable"]},
+  {"id": "R-TOOL-001", "category": "tool_safety", "rule": "Confirm cutting target before using knife", "keywords": ["cut", "knife"]},
+  {"id": "R-TOOL-002", "category": "tool_safety", "rule": "Do not use tools for unintended purposes", "keywords": ["tool", "misuse"]},
+  {"id": "R-HUMAN-001", "category": "human_safety", "rule": "Maintain safe distance from humans during arm movement", "keywords": ["human", "move", "arm", "near"]},
+  {"id": "R-HUMAN-002", "category": "human_safety", "rule": "Stop immediately if unexpected human contact detected", "keywords": ["contact", "human", "collision"]},
+  {"id": "R-SPILL-001", "category": "physical_safety", "rule": "Ensure containers are upright before moving with liquid", "keywords": ["liquid", "move", "spill", "pour"]},
+  {"id": "R-AUTH-001", "category": "authorization", "rule": "Restricted operations require explicit human approval", "keywords": ["restricted", "dangerous", "approval"]}
+]
