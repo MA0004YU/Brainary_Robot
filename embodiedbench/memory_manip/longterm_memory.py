@@ -102,5 +102,14 @@ class EmbodiedLTMClient:
             files={"image": image_path, "video": video_path, "audio": audio_path},
         )
 
-    def query_memory(self, query: str) -> Dict[str, Any]:
-        return self._post("/query", form={"query": query})
+    def query_memory(self, query: str, mode: str = "hybrid") -> Dict[str, Any]:
+        return self._post("/query", form={"query": query, "mode": mode, "use_pm": "false"})
+
+    def update_state(self, observation_desc: str) -> Dict[str, Any]:
+        """Wrap a state-change description as a structured LTM insert (mirrors Planning_module LTMClient)."""
+        prompt = (
+            f"[STATE UPDATE] {observation_desc}. "
+            "Please update the exact locations and states of the objects in your memory "
+            "to reflect this exact new state. Remove any old locations that contradict this new state."
+        )
+        return self.insert_memory(query_text=prompt)

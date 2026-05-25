@@ -9,7 +9,8 @@ Layers:
 Entry point: EmbodiedManipulationMemorySystem (agent_memory.py)
 Configuration: MemorySystemConfig (config.py)
 I/O interfaces: PerceptionInterface, SimulationInterface, MonitorInterface (interfaces.py)
-Planning_agent bridge: PlanningAgentBridge (bridges.py)
+Planning_module bridge: PlanningModuleBridge (bridges.py)
+  - PlanningAgentBridge is a backward-compatible alias for PlanningModuleBridge
 """
 from embodiedbench.memory_manip.config import MemorySystemConfig
 from embodiedbench.memory_manip.agent_memory import EmbodiedManipulationMemorySystem
@@ -21,7 +22,7 @@ from embodiedbench.memory_manip.interfaces import (
 from embodiedbench.memory_manip.working_memory import WorkingMemory
 from embodiedbench.memory_manip.episodic_memory import EpisodicMemory, EpisodeRecord, StepRecord
 from embodiedbench.memory_manip.semantic_memory import SemanticMemory
-from embodiedbench.memory_manip.bridges import PlanningAgentBridge
+from embodiedbench.memory_manip.bridges import PlanningModuleBridge, PlanningAgentBridge
 
 __all__ = [
     "MemorySystemConfig",
@@ -34,5 +35,6 @@ __all__ = [
     "EpisodeRecord",
     "StepRecord",
     "SemanticMemory",
-    "PlanningAgentBridge",
+    "PlanningModuleBridge",
+    "PlanningAgentBridge",  # backward-compatible alias
 ]

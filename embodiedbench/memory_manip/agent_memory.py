@@ -89,8 +89,8 @@ class EmbodiedManipulationMemorySystem:
         self.simulation = simulation or NullSimulation()
         self.monitor = monitor or NullMonitor()
 
-        # Planning_agent bridge (read-only)
-        self._bridge = PlanningAgentBridge(self.config.planning_agent_dir)
+        # Planning_module bridge (read-only)
+        self._bridge = PlanningAgentBridge(self.config.planning_module_dir)
 
         # Episode-level bookkeeping
         self._episode_id: str = ""
@@ -192,17 +192,24 @@ class EmbodiedManipulationMemorySystem:
         )
 
     # -----------------------------------------------------------------------
-    # Planning_agent bridge
+    # Planning_module bridge
     # -----------------------------------------------------------------------
 
-    def sync_from_planning_agent(self) -> Dict[str, Any]:
+    def sync_from_planning_module(self) -> Dict[str, Any]:
         """
-        Pull user preferences and scene knowledge from Planning_agent MD files.
+        Pull user preferences and scene knowledge from the Planning_module.
 
-        Call once at session start. Never modifies Planning_agent files.
+        Tries MD files first (legacy path), then queries the shared EmbodiedLTM
+        HTTP service that Planning_module writes to.
+
+        Call once at session start. Never modifies Planning_module files.
         Returns a status dict describing what was synced.
         """
-        return self._bridge.sync(self.working, self.semantic)
+        return self._bridge.sync(self.working, self.semantic, ltm_client=self._ltm_client)
+
+    def sync_from_planning_agent(self) -> Dict[str, Any]:
+        """Backward-compatible alias for sync_from_planning_module()."""
+        return self.sync_from_planning_module()
 
     # -----------------------------------------------------------------------
     # Perception hook
@@ -381,9 +388,9 @@ class EmbodiedManipulationMemorySystem:
     # Remote LTM query (backward-compatible)
     # -----------------------------------------------------------------------
 
-    def query_longterm_memory(self, query: str) -> Dict[str, Any]:
+    def query_longterm_memory(self, query: str, mode: str = "hybrid") -> Dict[str, Any]:
         """Forward a query to the optional EmbodiedLTM remote service."""
-        return self._ltm_client.query_memory(query)
+        return self._ltm_client.query_memory(query, mode=mode)
 
     # -----------------------------------------------------------------------
     # Snapshot / inspection

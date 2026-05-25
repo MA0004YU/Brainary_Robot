@@ -33,9 +33,9 @@ class MemorySystemConfig:
     rig_metadata: Dict[str, Any] = field(default_factory=dict)
     robot_dof: int = 6
 
-    # --- Planning_agent bridge ---
-    # Path to the Planning_agent directory; None = auto-detect sibling dir
-    planning_agent_dir: Optional[str] = None
+    # --- Planning_module bridge ---
+    # Path to the Planning_module directory; None = auto-detect sibling dir
+    planning_module_dir: Optional[str] = None
 
     # --- EmbodiedLTM remote service ---
     embodiedltm_base_url: str = "http://127.0.0.1:8000"
