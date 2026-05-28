@@ -124,26 +124,27 @@ class PerceptionPipeline:
         # 4. 执行空间 NMS 融合去重与盲区遮挡互补
         final_world_entities = self._spatial_nms_3d(all_detected_world_entities)
 
-        # 5. 统一转换并输出为 SAPIEN 标准格式 (SAPIEN 的底层接口强制要求四元数格式为 wxyz)
-        scene_entities = []
+        # 5. 统一转换并输出为类脑 VLM 协议与 SceneBuilder 兼容的标准格式
+        objects = []
         for idx, entity in enumerate(final_world_entities):
             T_w = entity["pose_world"]
             quat_xyzw = R.from_matrix(T_w[0:3, 0:3]).as_quat()
-            # 显式重组为 SAPIEN 规定的 [w, x, y, z] 格式，不发生物理冲突
-            quat_wxyz = [float(quat_xyzw[3]), float(quat_xyzw[0]), float(quat_xyzw[1]), float(quat_xyzw[2])]
-
-            scene_entities.append({
-                "id": f"{entity['label']}_{idx + 1}",
+            
+            # 提取 3D 坐标
+            x, y, z = T_w[0:3, 3].tolist()
+            # 提取四元数并显式重组为 VLM 协议与 SAPIEN 均要求的 [qw, qx, qy, qz]
+            qw = float(quat_xyzw[3])
+            qx, qy, qz = float(quat_xyzw[0]), float(quat_xyzw[1]), float(quat_xyzw[2])
+    
+            objects.append({
+                "name": f"{entity['label']}_{idx + 1}",  # 契约对齐：id -> name
                 "type": "primitive_box",
-                "size": entity["size"],
-                "pose": {
-                    "pos": T_w[0:3, 3].tolist(),
-                    "quat": quat_wxyz
-                }
+                "size_whd": entity["size"],              # 契约对齐：size -> size_whd
+                "pose": [x, y, z, qw, qx, qy, qz]        # 契约对齐：嵌套字典 -> 7D 扁平数组
             })
-
+    
         return {
             "stage": "perception_initialization",
             "timestamp": time.time(),
-            "scene_entities": scene_entities
+            "objects": objects                           # 契约对齐：scene_entities -> objects
         }
