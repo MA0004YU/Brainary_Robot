@@ -1,7 +1,7 @@
 # simulation/src/simulator/__init__.py
 
 from .scene_builder import SceneBuilder
-from .robot_controller import RobotController
+from .robot_controller import BlueprintGraphEngine 
 from .detectors import (
     PhysicsBoundaryDetectors,
     DestructionFeedback,
@@ -12,9 +12,9 @@ from .detectors import (
 
 __all__ = [
     "SceneBuilder",
-    "RobotController",
+    "BlueprintGraphEngine",  # 同步更新白名单
     "PhysicsBoundaryDetectors",
-    # 暴露四类结构体，方便外部进行 isinstance() 判断或类型注解
+    # 暴露四类结构体，方便外部 API 进行 isinstance() 判断或记录错误日志
     "DestructionFeedback",
     "TippingFeedback",
     "IntrusionFeedback",
