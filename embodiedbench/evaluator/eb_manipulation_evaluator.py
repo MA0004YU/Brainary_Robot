@@ -24,6 +24,11 @@ class EB_ManipulationEvaluator():
             from embodiedbench.memory_manip import EmbodiedManipulationMemorySystem, MemorySystemConfig
 
             self.arch_memory = EmbodiedManipulationMemorySystem(MemorySystemConfig())
+            try:
+                sync_result = self.arch_memory.sync_from_planning_module()
+                logger.info("Planning_module bridge sync: %s", sync_result)
+            except Exception as e:
+                logger.warning("Planning_module bridge sync failed (non-fatal): %s", e)
 
     def load_demonstration(self):
         all_examples = {}

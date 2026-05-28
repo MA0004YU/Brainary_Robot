@@ -35,13 +35,13 @@ class PrincipleExtractor:
 
         user_prompt = (
             f"当前任务最高目标：\n{json.dumps(wm_context['task_context'], indent=2)}\n\n"
-            f"视觉解算出的场景初始空间拓扑干涉：\n{json.dumps(wm_context['scene_topology'], indent=2)}\n\n"
+            f"视觉解算出的场景初始空间拓扑干涉：\n{json.dumps(wm_context['dynamic_scene_graph'], indent=2)}\n\n"
             f"底层传感器探针熔断时的瞬时微观物理惨状 (F=I/dt, 电机死锁扭矩, 倾角违规)：\n{json.dumps(failure_payload, indent=2)}\n\n"
             "请根据上述物理惨状与常识，直接吐出符合格式要求的反思剪枝原则字符串，严禁携带任何前言、后记或 Markdown 标记。"
         )
 
         try:
-            response = self.client.chat.comeline_clean_call = self.client.chat.completions.create(
+            response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
                     {"role": "system", "content": self.sys_prompt},

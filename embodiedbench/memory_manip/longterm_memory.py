@@ -16,11 +16,20 @@ from urllib import error, request
 
 
 class EmbodiedLTMClient:
-    """Lightweight HTTP adapter for the EmbodiedLTM FastAPI service."""
+    """Lightweight HTTP adapter for the EmbodiedLTM FastAPI service.
 
-    def __init__(self, base_url: str = "http://127.0.0.1:8000", timeout_sec: float = 8.0) -> None:
+    Pass base_url=None (or set MemorySystemConfig.embodiedltm_base_url=None) to
+    disable all remote calls.  Every method returns an empty-but-valid dict so
+    callers never need to branch on whether the service is available.
+    """
+
+    def __init__(self, base_url: Optional[str] = "http://127.0.0.1:8000", timeout_sec: float = 8.0) -> None:
         self.base_url = base_url
         self.timeout_sec = timeout_sec
+
+    @property
+    def _disabled(self) -> bool:
+        return not self.base_url
 
     def _safe_request(self, req: request.Request) -> Dict[str, Any]:
         try:
@@ -96,6 +105,8 @@ class EmbodiedLTMClient:
         video_path: Optional[str] = None,
         audio_path: Optional[str] = None,
     ) -> Dict[str, Any]:
+        if self._disabled:
+            return {"status": "disabled"}
         return self._post(
             "/insert",
             form={"query": query_text},
@@ -103,10 +114,14 @@ class EmbodiedLTMClient:
         )
 
     def query_memory(self, query: str, mode: str = "hybrid") -> Dict[str, Any]:
+        if self._disabled:
+            return {"status": "disabled", "final_answer": ""}
         return self._post("/query", form={"query": query, "mode": mode, "use_pm": "false"})
 
     def update_state(self, observation_desc: str) -> Dict[str, Any]:
         """Wrap a state-change description as a structured LTM insert (mirrors Planning_module LTMClient)."""
+        if self._disabled:
+            return {"status": "disabled"}
         prompt = (
             f"[STATE UPDATE] {observation_desc}. "
             "Please update the exact locations and states of the objects in your memory "

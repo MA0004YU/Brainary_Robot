@@ -36,7 +36,7 @@ def main() -> None:
     parser.add_argument(
         "--use_architectural_memory",
         type=int,
-        default=0,
+        default=1,
         help="1 enables WM/LTM hooks; perception defaults to NullPerception until a custom PerceptionInterface is wired.",
     )
     args = parser.parse_args()

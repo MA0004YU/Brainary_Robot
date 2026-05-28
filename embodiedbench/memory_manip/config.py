@@ -38,7 +38,8 @@ class MemorySystemConfig:
     planning_module_dir: Optional[str] = None
 
     # --- EmbodiedLTM remote service ---
-    embodiedltm_base_url: str = "http://127.0.0.1:8000"
+    # Set to None to disable all remote LTM calls (safe for offline / unit-test runs).
+    embodiedltm_base_url: Optional[str] = "http://127.0.0.1:8000"
     embodiedltm_timeout_sec: float = 8.0
 
     def get_store_dir(self) -> Path:
