@@ -2,25 +2,71 @@
 Episodic Memory: persistent record of complete episodes.
 
 Each episode is stored as an EpisodeRecord containing the full step-by-step
-trajectory, task metadata, and aggregated object observations.
+trajectory, task metadata, aggregated object observations, and an importance
+score computed by EpisodeScorer at write time.
 
-Persistence  : append-only JSONL file (one JSON object per line).
-               New episodes are appended atomically; the in-memory list is
-               trimmed to max_episodes (most-recent kept).
+Persistence
+-----------
+episodes.jsonl    : append-only episode records (one JSON object per line).
+episodes_meta.json: mutable index of per-episode activation, access_count,
+                    and abstracted flag.  Kept separate so the JSONL can stay
+                    append-only while activation evolves over time.
 
-Retrieval    : StringRetriever uses keyword overlap between the query string
-               and an episode's instruction + objects_encountered.
-               The retriever is accessed only through the EpisodicMemory API,
-               so it can be swapped for an embedding-based implementation
-               without touching callers.
+Activation model
+----------------
+activation = initial_score * exp(-decay_rate * age) + log1p(access_count) * access_boost
+
+  age          : current_episode_num - creation_episode (in episode units)
+  initial_score: computed by EpisodeScorer at write time
+  access_count : incremented each time the episode is returned by a query
+
+On every semantic generalization pass the processed episodes are marked
+abstracted=True.  Episodes with activation < prune_threshold AND
+abstracted=True are eligible for deletion (prune()).
+
+Retrieval
+---------
+StringRetriever uses keyword overlap.  Results are filtered by a minimum
+activation threshold and trigger a reactivation boost on the matched records.
 """
 from __future__ import annotations
 
 import json
+import math
+import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+
+# ---------------------------------------------------------------------------
+# Activation helper
+# ---------------------------------------------------------------------------
+
+def compute_activation(
+    initial_score: float,
+    access_count: int,
+    creation_episode: int,
+    current_episode: int,
+    decay_rate: float = 0.5,
+    access_boost: float = 0.3,
+) -> float:
+    """
+    Compute current activation level.
+
+    activation = initial_score * exp(-decay_rate * age)
+                 + log1p(access_count) * access_boost
+
+    Properties:
+      - Decays exponentially with episode age.
+      - Each retrieval adds a diminishing log boost.
+      - Initial score scales the baseline (higher importance → slower decay).
+    """
+    age = max(0, current_episode - creation_episode)
+    decay = math.exp(-decay_rate * age)
+    boost = math.log1p(access_count) * access_boost
+    return initial_score * decay + boost
 
 
 # ---------------------------------------------------------------------------
@@ -86,6 +132,12 @@ class EpisodeRecord:
     duration_sec: float
     timestamp: float = field(default_factory=time.time)
 
+    # Importance score computed by EpisodeScorer at write time.
+    # Persisted so decay can be computed correctly after process restart.
+    initial_score: float = 1.0
+    # Episode number (counter) when this record was created.
+    creation_episode: int = 0
+
     # Full step-by-step trajectory
     steps: List[StepRecord] = field(default_factory=list)
 
@@ -108,7 +160,6 @@ class EpisodeRecord:
             rec["count"] += 1
             if step.current_location and step.current_location not in rec["locations"]:
                 rec["locations"].append(step.current_location)
-            # Mark as grasped if the action string indicates a pick
             if "pick" in step.action.lower() and obj.lower() in step.action.lower():
                 rec["grasped"] = True
 
@@ -122,6 +173,8 @@ class EpisodeRecord:
             "total_steps": self.total_steps,
             "duration_sec": self.duration_sec,
             "timestamp": self.timestamp,
+            "initial_score": self.initial_score,
+            "creation_episode": self.creation_episode,
             "steps": [s.to_dict() for s in self.steps],
             "objects_encountered": self.objects_encountered,
             "intent": self.intent,
@@ -140,6 +193,8 @@ class EpisodeRecord:
             total_steps=d.get("total_steps", 0),
             duration_sec=d.get("duration_sec", 0.0),
             timestamp=d.get("timestamp", time.time()),
+            initial_score=d.get("initial_score", 1.0),
+            creation_episode=d.get("creation_episode", 0),
             intent=d.get("intent", {}),
             extra=d.get("extra", {}),
         )
@@ -158,9 +213,6 @@ class StringRetriever:
 
     Scores each record by the fraction of query tokens that appear in the
     episode's instruction (weight 0.7) and objects_encountered keys (weight 0.3).
-
-    This class is the default retriever slot; replace it with an embedding-based
-    implementation by subclassing and overriding score() + retrieve().
     """
 
     def score(self, query: str, record: EpisodeRecord) -> float:
@@ -193,18 +245,51 @@ class EpisodicMemory:
     """
     Persistent episodic memory backed by an append-only JSONL file.
 
-    On init the JSONL file is loaded into memory (most-recent max_episodes kept).
-    New episodes are appended to disk immediately; in-memory list is trimmed.
+    Activation state (access_count, abstracted flag, current activation) is
+    maintained in a separate episodes_meta.json file so the JSONL can remain
+    strictly append-only.
+
+    Parameters
+    ----------
+    store_path       : path to episodes.jsonl
+    max_episodes     : maximum episodes kept in memory
+    decay_rate       : d in exp(-d * age); higher → faster forgetting
+    access_boost     : log1p(access_count) coefficient in activation formula
+    prune_threshold  : episodes below this activation AND abstracted are pruned
+    min_activation_retrieval : episodes below this activation are excluded from
+                               query results (set to 0.0 to disable filtering)
     """
 
-    def __init__(self, store_path: Path, max_episodes: int = 1000) -> None:
+    def __init__(
+        self,
+        store_path: Path,
+        max_episodes: int = 1000,
+        decay_rate: float = 0.5,
+        access_boost: float = 0.3,
+        prune_threshold: float = 0.05,
+        min_activation_retrieval: float = 0.0,
+    ) -> None:
         self.store_path = store_path
         self.max_episodes = max_episodes
+        self.decay_rate = decay_rate
+        self.access_boost = access_boost
+        self.prune_threshold = prune_threshold
+        self.min_activation_retrieval = min_activation_retrieval
+
+        self._meta_path = store_path.parent / "episodes_meta.json"
         self._records: List[EpisodeRecord] = []
         self._retriever = StringRetriever()
-        self._load()
 
-    # --- persistence -------------------------------------------------------
+        # episode counter: incremented by tick() after each save_episode call
+        self._episode_counter: int = 0
+
+        # per-episode mutable state: {episode_id: {"access_count", "abstracted", "activation"}}
+        self._meta: Dict[str, Dict[str, Any]] = {}
+
+        self._load()
+        self._load_meta()
+
+    # --- persistence: JSONL ------------------------------------------------
 
     def _load(self) -> None:
         if not self.store_path.exists():
@@ -217,8 +302,7 @@ class EpisodicMemory:
                 try:
                     self._records.append(EpisodeRecord.from_dict(json.loads(line)))
                 except Exception:
-                    pass  # Skip corrupted lines silently
-        # Keep only most-recent episodes in memory
+                    pass
         if len(self._records) > self.max_episodes:
             self._records = self._records[-self.max_episodes:]
 
@@ -227,14 +311,140 @@ class EpisodicMemory:
         with open(self.store_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(record.to_dict(), ensure_ascii=False) + "\n")
 
+    # --- persistence: meta -------------------------------------------------
+
+    def _load_meta(self) -> None:
+        if not self._meta_path.exists():
+            return
+        try:
+            with open(self._meta_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self._meta = data.get("meta", {})
+            self._episode_counter = data.get("episode_counter", 0)
+        except Exception:
+            pass
+
+    def _save_meta(self) -> None:
+        self._meta_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self._meta_path.with_suffix(".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(
+                {"episode_counter": self._episode_counter, "meta": self._meta},
+                f,
+                ensure_ascii=False,
+                indent=2,
+            )
+        os.replace(str(tmp), str(self._meta_path))
+
     # --- write -------------------------------------------------------------
 
     def save_episode(self, record: EpisodeRecord) -> None:
-        """Persist an episode: append to JSONL and update in-memory list."""
+        """Persist an episode: append to JSONL, initialise meta, advance counter."""
         self._records.append(record)
         self._append_to_disk(record)
         if len(self._records) > self.max_episodes:
             self._records = self._records[-self.max_episodes:]
+
+        self._meta[record.episode_id] = {
+            "access_count": 0,
+            "abstracted": False,
+            "activation": record.initial_score,
+        }
+        self.tick()
+
+    def tick(self) -> None:
+        """Advance the internal episode counter and persist meta."""
+        self._episode_counter += 1
+        self._save_meta()
+
+    # --- activation --------------------------------------------------------
+
+    def _get_activation(self, record: EpisodeRecord) -> float:
+        """Return current activation for a record (computed on the fly)."""
+        meta = self._meta.get(record.episode_id, {})
+        return compute_activation(
+            initial_score=record.initial_score,
+            access_count=meta.get("access_count", 0),
+            creation_episode=record.creation_episode,
+            current_episode=self._episode_counter,
+            decay_rate=self.decay_rate,
+            access_boost=self.access_boost,
+        )
+
+    def _reactivate(self, record: EpisodeRecord) -> None:
+        """Increment access count and refresh stored activation for a record."""
+        meta = self._meta.setdefault(record.episode_id, {"access_count": 0, "abstracted": False})
+        meta["access_count"] = meta.get("access_count", 0) + 1
+        meta["activation"] = compute_activation(
+            initial_score=record.initial_score,
+            access_count=meta["access_count"],
+            creation_episode=record.creation_episode,
+            current_episode=self._episode_counter,
+            decay_rate=self.decay_rate,
+            access_boost=self.access_boost,
+        )
+        self._save_meta()
+
+    def decay_activations(self) -> None:
+        """
+        Recompute activation for every record based on current episode count.
+        Call after semantic generalization or periodically to age the memory.
+        """
+        for record in self._records:
+            meta = self._meta.setdefault(record.episode_id, {"access_count": 0, "abstracted": False})
+            meta["activation"] = compute_activation(
+                initial_score=record.initial_score,
+                access_count=meta.get("access_count", 0),
+                creation_episode=record.creation_episode,
+                current_episode=self._episode_counter,
+                decay_rate=self.decay_rate,
+                access_boost=self.access_boost,
+            )
+        self._save_meta()
+
+    # --- forgetting --------------------------------------------------------
+
+    def mark_abstracted(self, episode_ids: List[str]) -> None:
+        """
+        Mark episodes as abstracted (their key facts are in SemanticMemory).
+        Abstracted + low-activation episodes become eligible for pruning.
+        """
+        for eid in episode_ids:
+            self._meta.setdefault(eid, {"access_count": 0, "abstracted": False})
+            self._meta[eid]["abstracted"] = True
+        self._save_meta()
+
+    def prune(self) -> int:
+        """
+        Remove episodes that are both abstracted and below prune_threshold.
+        Returns the number of episodes deleted.
+        """
+        to_remove: List[str] = []
+        for record in self._records:
+            meta = self._meta.get(record.episode_id, {})
+            activation = meta.get("activation", record.initial_score)
+            abstracted = meta.get("abstracted", False)
+            if abstracted and activation < self.prune_threshold:
+                to_remove.append(record.episode_id)
+
+        if not to_remove:
+            return 0
+
+        remove_set = set(to_remove)
+        self._records = [r for r in self._records if r.episode_id not in remove_set]
+        for eid in to_remove:
+            self._meta.pop(eid, None)
+
+        # Rewrite JSONL without the pruned records
+        self.store_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.store_path.with_suffix(".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            for r in self._records:
+                f.write(json.dumps(r.to_dict(), ensure_ascii=False) + "\n")
+        os.replace(str(tmp), str(self.store_path))
+
+        self._save_meta()
+        return len(to_remove)
 
     # --- query -------------------------------------------------------------
 
@@ -244,8 +454,21 @@ class EpisodicMemory:
         top_k: int = 5,
         min_score: float = 0.1,
     ) -> List[EpisodeRecord]:
-        """Return up to top_k episodes most similar to the query string."""
-        return self._retriever.retrieve(query, self._records, top_k=top_k, min_score=min_score)
+        """
+        Return up to top_k episodes most similar to the query string.
+        Episodes below min_activation_retrieval are excluded.
+        Retrieved episodes receive a reactivation boost.
+        """
+        candidates = self._records
+        if self.min_activation_retrieval > 0.0:
+            candidates = [
+                r for r in self._records
+                if self._get_activation(r) >= self.min_activation_retrieval
+            ]
+        results = self._retriever.retrieve(query, candidates, top_k=top_k, min_score=min_score)
+        for r in results:
+            self._reactivate(r)
+        return results
 
     def query_by_object(self, obj_name: str) -> List[EpisodeRecord]:
         """Return all episodes where obj_name was encountered."""
@@ -274,16 +497,34 @@ class EpisodicMemory:
             return None
         return sum(1 for r in similar if r.success) / len(similar)
 
+    def get_activation_stats(self) -> Dict[str, Any]:
+        """Return min/max/mean activation across all records (for monitoring)."""
+        if not self._records:
+            return {"min": 0.0, "max": 0.0, "mean": 0.0, "count": 0}
+        acts = [self._get_activation(r) for r in self._records]
+        return {
+            "min": round(min(acts), 4),
+            "max": round(max(acts), 4),
+            "mean": round(sum(acts) / len(acts), 4),
+            "count": len(acts),
+        }
+
     @property
     def total_episodes(self) -> int:
         return len(self._records)
 
     def summary(self) -> Dict[str, Any]:
         total = self.total_episodes
+        abstracted = sum(
+            1 for eid, m in self._meta.items() if m.get("abstracted", False)
+        )
         return {
             "total_episodes": total,
-            "success_rate": (
-                round(sum(1 for r in self._records if r.success) / max(total, 1), 3)
+            "abstracted_episodes": abstracted,
+            "episode_counter": self._episode_counter,
+            "success_rate": round(
+                sum(1 for r in self._records if r.success) / max(total, 1), 3
             ),
+            "activation_stats": self.get_activation_stats(),
             "store_path": str(self.store_path),
         }

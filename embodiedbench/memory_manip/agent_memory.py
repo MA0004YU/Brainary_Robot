@@ -47,6 +47,7 @@ from embodiedbench.memory_manip.episodic_memory import EpisodicMemory, EpisodeRe
 from embodiedbench.memory_manip.semantic_memory import SemanticMemory
 from embodiedbench.memory_manip.longterm_memory import EmbodiedLTMClient
 from embodiedbench.memory_manip.bridges import PlanningAgentBridge
+from embodiedbench.memory_manip.episode_scorer import ManipulationScorer
 
 
 class EmbodiedManipulationMemorySystem:
@@ -75,8 +76,13 @@ class EmbodiedManipulationMemorySystem:
         self.episodic = EpisodicMemory(
             store_path=store / "episodes.jsonl",
             max_episodes=self.config.episodic_max_episodes,
+            decay_rate=self.config.activation_decay_rate,
+            access_boost=self.config.activation_access_boost,
+            prune_threshold=self.config.activation_prune_threshold,
+            min_activation_retrieval=self.config.activation_min_retrieval,
         )
         self.semantic = SemanticMemory(store_path=store / "semantic_kb.json")
+        self._scorer = ManipulationScorer(self.config)
 
         # Optional remote EmbodiedLTM service
         self._ltm_client = EmbodiedLTMClient(
@@ -153,6 +159,7 @@ class EmbodiedManipulationMemorySystem:
             duration_sec=round(duration, 2),
             intent=self.working.goal.intent,
             extra=extra or {},
+            creation_episode=self.episodic._episode_counter,
         )
 
         # Populate step records from the action buffer
@@ -169,13 +176,20 @@ class EmbodiedManipulationMemorySystem:
                 reasoning=ar.reasoning,
             ))
 
+        # Compute importance score before persisting
+        breakdown = self._scorer.compute(record, semantic=self.semantic)
+        record.initial_score = breakdown.total
+
         self.episodic.save_episode(record)
         self._pending_generalization.append(record)
         self._episodes_since_generalize += 1
 
         # Batch generalization: episodic -> semantic every N episodes
         if self._episodes_since_generalize >= self.config.episodic_generalize_every_n:
+            generalized_ids = [r.episode_id for r in self._pending_generalization]
             self.semantic.generalize_from_episodes(self._pending_generalization)
+            self.episodic.mark_abstracted(generalized_ids)
+            self.episodic.decay_activations()
             self._pending_generalization.clear()
             self._episodes_since_generalize = 0
 
@@ -190,6 +204,17 @@ class EmbodiedManipulationMemorySystem:
                 ensure_ascii=False,
             )
         )
+
+    def decay_and_prune(self) -> Dict[str, Any]:
+        """
+        Force an activation decay pass and prune eligible episodes.
+
+        Returns a summary dict with pruned count and current activation stats.
+        Call periodically (e.g., at session end) to keep memory lean.
+        """
+        self.episodic.decay_activations()
+        pruned = self.episodic.prune()
+        return {"pruned": pruned, "activation_stats": self.episodic.get_activation_stats()}
 
     # -----------------------------------------------------------------------
     # Planning_module bridge

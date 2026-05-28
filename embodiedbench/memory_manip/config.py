@@ -42,6 +42,20 @@ class MemorySystemConfig:
     embodiedltm_base_url: Optional[str] = "http://127.0.0.1:8000"
     embodiedltm_timeout_sec: float = 8.0
 
+    # --- Episode importance score weights (must sum to 1.0) ---
+    score_weight_endogenous_intent: float = 0.20   # A3: current task novelty
+    score_weight_endogenous_longterm: float = 0.15  # A2: historically hard tasks
+    score_weight_endogenous_value: float = 0.10     # A1: value/identity alignment (stub)
+    score_weight_exogenous: float = 0.25            # B:  novelty + violation signals
+    score_weight_reward_external: float = 0.20      # C1: task success + surprise
+    score_weight_reward_internal: float = 0.10      # C2: internal goal alignment (stub)
+
+    # --- Activation decay (ACT-R Base-Level Learning) ---
+    activation_decay_rate: float = 0.5    # d in exp(-d * age); higher → faster forgetting
+    activation_access_boost: float = 0.3  # log1p(access_count) coefficient
+    activation_prune_threshold: float = 0.05  # episodes below this + abstracted are pruned
+    activation_min_retrieval: float = 0.0      # 0.0 = no retrieval filter
+
     def get_store_dir(self) -> Path:
         if self.store_dir:
             return Path(self.store_dir)

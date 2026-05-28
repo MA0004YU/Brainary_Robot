@@ -23,6 +23,12 @@ from embodiedbench.memory_manip.working_memory import WorkingMemory
 from embodiedbench.memory_manip.episodic_memory import EpisodicMemory, EpisodeRecord, StepRecord
 from embodiedbench.memory_manip.semantic_memory import SemanticMemory
 from embodiedbench.memory_manip.bridges import PlanningModuleBridge, PlanningAgentBridge
+from embodiedbench.memory_manip.episode_scorer import (
+    EpisodeScorer,
+    ManipulationScorer,
+    EpisodeScoreBreakdown,
+)
+from embodiedbench.memory_manip.episodic_memory import compute_activation
 
 __all__ = [
     "MemorySystemConfig",
@@ -36,5 +42,9 @@ __all__ = [
     "StepRecord",
     "SemanticMemory",
     "PlanningModuleBridge",
-    "PlanningAgentBridge",  # backward-compatible alias
+    "PlanningAgentBridge",
+    "EpisodeScorer",
+    "ManipulationScorer",
+    "EpisodeScoreBreakdown",
+    "compute_activation",
 ]
