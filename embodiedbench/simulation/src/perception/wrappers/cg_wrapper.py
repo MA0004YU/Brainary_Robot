@@ -55,37 +55,37 @@ class ConceptGraphsWrapper:
         else:
             self.pipeline = None
 
-    def extract_coarse_obb(self, rgb_image: np.ndarray, depth_image: np.ndarray, intrinsics: dict) -> List[Dict]:
-        """推理管线：直接消化 RGB-D 并在 Open3D 中解算包围盒"""
+   def extract_coarse_obb(self, rgb_image: np.ndarray, depth_image: np.ndarray, intrinsics: dict) -> List[Dict]:
+        """开启 FP16 混合精度与显存回收的推理管线"""
         if self.pipeline is None:
             print("[CG_Wrapper] 视觉管线未初始化，返回空几何体！")
             return []
 
-        # 将 Numpy 张量打入底层模型，获取真实的语义掩码与点云切分
-        with torch.no_grad(): # 加上 no_grad 防止显存爆炸
-            raw_instances = self.pipeline.process(rgb_image, depth_image, intrinsics)
-
         results = []
+        
+        # FP16 降维
+        # no_grad 砍掉梯度图省显存，autocast 让模型在 GPU 上以半精度运行
+        with torch.no_grad():
+            with autocast(device_type="cuda", dtype=torch.float16):
+                raw_instances = self.pipeline.process(rgb_image, depth_image, intrinsics)
+
+        # 几何解析与降维提取
         for instance in raw_instances:
             label = instance["label"]
-            pcd = instance["pcd"]  # 接收 open3d.geometry.PointCloud
+            pcd = instance["pcd"]  
 
-            # 如果某次分割失败点云为空，跳过
             if not pcd.has_points() or len(pcd.points) < 10:
                 continue
 
-            # 极其优美的 3D 去噪算法
             cl, ind = pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.0)
             clean_pcd = pcd.select_by_index(ind)
 
             if not clean_pcd.has_points():
                 continue
 
-            # OBB 几何计算
             obb = clean_pcd.get_oriented_bounding_box()
             size_whd = obb.extent.tolist()
 
-            # 抽取 4x4 位姿矩阵
             coarse_pose_4x4 = np.eye(4)
             coarse_pose_4x4[0:3, 0:3] = obb.R
             coarse_pose_4x4[0:3, 3] = obb.center
@@ -96,4 +96,10 @@ class ConceptGraphsWrapper:
                 "coarse_pose": coarse_pose_4x4
             })
 
+        # 我们已经把物理坐标提取出来了，底层的张量必须清理
+        del raw_instances 
+        gc.collect()               # 强制唤醒 Python 垃圾回收清扫内存指针
+        torch.cuda.empty_cache()   # 强制勒令 PyTorch 把空闲显存物理归还给显卡
+
+        print(f"[CG_Wrapper] 🎯 FP16 推理完成，截获 {len(results)} 个刚体，显存已深度清理。")
         return results
