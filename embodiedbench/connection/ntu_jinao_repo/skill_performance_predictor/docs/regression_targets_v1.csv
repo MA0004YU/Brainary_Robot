@@ -1,0 +1,30 @@
+index,target_name,description,unit,source_field
+0,execution_steps,技能执行步数,steps,measured_performance.execution_steps
+1,execution_time,技能执行时间,s,measured_performance.execution_time
+2,trajectory_length,末端轨迹长度,m,measured_performance.trajectory_length
+3,final_ee_x,末端最终位置 X,m,measured_performance.final_ee_position[0]
+4,final_ee_y,末端最终位置 Y,m,measured_performance.final_ee_position[1]
+5,final_ee_z,末端最终位置 Z,m,measured_performance.final_ee_position[2]
+6,target_x,当前 skill 目标位置 X,m,measured_performance.target_position[0]
+7,target_y,当前 skill 目标位置 Y,m,measured_performance.target_position[1]
+8,target_z,当前 skill 目标位置 Z,m,measured_performance.target_position[2]
+9,final_ee_position_error,末端到目标点位置误差,m,measured_performance.final_ee_position_error
+10,final_ee_roll,末端最终 roll,rad,measured_performance.final_ee_rpy[0]
+11,final_ee_pitch,末端最终 pitch,rad,measured_performance.final_ee_rpy[1]
+12,final_ee_yaw,末端最终 yaw,rad,measured_performance.final_ee_rpy[2]
+13,final_ee_orientation_error,末端最终姿态误差,rad,measured_performance.final_ee_orientation_error
+14,final_ee_linear_speed,末端结束线速度模长,m/s,measured_performance.final_ee_linear_speed
+15,average_ee_linear_speed,末端平均线速度,m/s,measured_performance.average_ee_linear_speed
+16,final_object_x,cube 最终位置 X,m,measured_performance.final_object_position[0]
+17,final_object_y,cube 最终位置 Y,m,measured_performance.final_object_position[1]
+18,final_object_z,cube 最终位置 Z,m,measured_performance.final_object_position[2]
+19,object_target_position_error,cube 到 target 三维误差,m,measured_performance.object_target_position_error
+20,object_target_xy_error,cube 到 target XY 误差,m,measured_performance.object_target_xy_error
+21,object_lift_delta,cube 高度变化,m,measured_performance.object_lift_delta
+22,ee_object_distance,结束时 ee 到 cube 距离,m,measured_performance.ee_object_distance
+23,min_ee_object_distance,执行过程中 ee 到 cube 最小距离,m,measured_performance.min_ee_object_distance
+24,object_target_xy_distance,cube 到 target XY 距离 v0 兼容别名,m,measured_performance.object_target_xy_distance
+25,final_position_error,cube 到 target 三维距离 v0 兼容别名,m,measured_performance.final_position_error
+26,object_displacement,cube 执行前后位移,m,measured_performance.object_displacement
+27,gripper_width_start,开始时夹爪宽度,m,measured_performance.gripper_width_start
+28,gripper_width_end,结束时夹爪宽度,m,measured_performance.gripper_width_end

@@ -1,0 +1,44 @@
+{
+  "overall_assessment": {
+    "predicted_success_probability": 0.72,
+    "predicted_timeout_probability": 0.08,
+    "predicted_failure_reason": "none",
+    "high_risk_nodes": ["s6"],
+    "summary": "The plan is feasible, but the place node may leave the object outside the target region."
+  },
+  "node_feedback": [
+    {
+      "node_id": "s6",
+      "skill": "place",
+      "target": "target",
+      "predicted": {
+        "success_probability": 0.48,
+        "timeout_probability": 0.12,
+        "failure_reason": "object_not_near_target",
+        "final_ee_position": [0.30, -0.18, 0.06],
+        "target_position": [0.30, -0.18, 0.035],
+        "final_ee_position_error": 0.045,
+        "final_ee_linear_speed": 0.02,
+        "average_ee_linear_speed": 0.05,
+        "final_object_position": [0.36, -0.14, 0.04],
+        "object_target_xy_error": 0.072,
+        "object_target_position_error": 0.075,
+        "execution_steps": 280,
+        "trajectory_length": 0.32
+      },
+      "risk": {
+        "risk_level": "high",
+        "risk_reason": "object_target_xy_error_too_large"
+      },
+      "suggested_revision": {
+        "params_to_adjust": [
+          "place_height",
+          "open_wait_steps",
+          "target_tolerance",
+          "move_above.target.height_offset"
+        ],
+        "natural_language_hint": "Predicted object-target XY error is high. Lower place height, increase open wait steps, and reduce target approach error."
+      }
+    }
+  ]
+}

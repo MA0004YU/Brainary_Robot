@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ntu Jinao Skill Blueprint",
+  "type": "object",
+  "required": ["blueprint_id", "task", "execution_graph"],
+  "additionalProperties": false,
+  "properties": {
+    "blueprint_id": {"type": "string", "minLength": 1},
+    "task": {"type": "string", "minLength": 1},
+    "execution_graph": {
+      "type": "object",
+      "required": ["start", "nodes"],
+      "additionalProperties": true,
+      "properties": {
+        "start": {"type": "string", "minLength": 1},
+        "logic": {"type": "string", "enum": ["sequence", "condition", "parallel"]},
+        "nodes": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+              "id": {"type": "string"},
+              "type": {"type": "string", "enum": ["skill", "condition", "parallel", "terminal"]},
+              "skill": {
+                "type": "string",
+                "enum": ["move_above", "reach", "descend", "grasp", "lift", "place", "retreat", "wait", "align_orientation"]
+              },
+              "target": {"type": "string"},
+              "params": {"type": "object"},
+              "performance_query": {"type": "array", "items": {"type": "string"}},
+              "parallel_mode": {"type": "string", "enum": ["all_success"]},
+              "goals": {"type": "object"},
+              "condition": {"type": "object"},
+              "next": {"type": "string"},
+              "on_failure": {"type": "string"},
+              "if_true": {"type": "string"},
+              "if_false": {"type": "string"},
+              "result": {"type": "string", "enum": ["success", "failure"]},
+              "failure_reason": {"type": "string"},
+              "execution_policy": {"type": "object"},
+              "brain_hook": {"type": "object"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

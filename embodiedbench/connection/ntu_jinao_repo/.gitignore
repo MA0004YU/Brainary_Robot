@@ -1,0 +1,103 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual env
+.venv/
+venv/
+env/
+conda_env/
+
+# IDE
+.vscode/
+.idea/
+
+# Isaac / Omniverse / simulation cache
+.kit/
+.cache/
+ov/
+isaac-sim/
+_build/
+build/
+dist/
+logs/
+log/
+*.log
+
+# Datasets and generated outputs
+datasets/
+outputs/
+runs/
+
+# Unified experiment data (keep layout + code only)
+data/01_vlm_inputs/*
+!data/01_vlm_inputs/.gitkeep
+data/02_vlm_outputs/*
+!data/02_vlm_outputs/.gitkeep
+data/03_predictor_outputs/*
+!data/03_predictor_outputs/.gitkeep
+data/04_execution_data/*
+!data/04_execution_data/.gitkeep
+data/manifests/*
+!data/manifests/.gitkeep
+wandb/
+trajectories/
+*.jsonl
+
+# Small curated examples (optional exception)
+!small_examples/
+!small_examples/*.jsonl
+
+# Model checkpoints
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.engine
+*.safetensors
+*.bin
+*.gguf
+
+# Videos / images / binary outputs
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.png
+*.jpg
+*.jpeg
+*.npy
+*.npz
+*.hdf5
+*.h5
+
+# System
+.DS_Store
+Thumbs.db
+
+# Keep placeholder for local dataset output dir
+!source/standalone/franka_state_machine_cerebellum/datasets/
+!source/standalone/franka_state_machine_cerebellum/datasets/.gitkeep
+!skill_performance_predictor/data/
+skill_performance_predictor/data/*
+!skill_performance_predictor/data/.gitkeep
+!skill_performance_predictor/outputs/
+skill_performance_predictor/outputs/*
+!skill_performance_predictor/outputs/.gitkeep
+!vlm_brain/data/
+vlm_brain/data/*
+!vlm_brain/data/.gitkeep
+!vlm_brain/outputs/
+vlm_brain/outputs/*
+!vlm_brain/outputs/.gitkeep
+
+# Do NOT commit Isaac Lab upstream or local staging artifacts
+isaaclab/
+IsaacLab/

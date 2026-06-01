@@ -1,0 +1,35 @@
+{
+  "task": "pick cube and place cube on sampled tabletop target",
+  "episode_id": "episode_000000",
+  "skill_plan": [
+    {
+      "skill": "pick",
+      "target": "cube",
+      "params": {
+        "approach_height": 0.12,
+        "grasp_height": 0.0,
+        "lift_height": 0.18,
+        "position_tolerance": 0.03,
+        "grasp_tolerance": 0.015,
+        "approach_steps": 500,
+        "descend_steps": 250,
+        "grasp_steps": 60,
+        "lift_steps": 350
+      }
+    },
+    {
+      "skill": "place",
+      "target": "target",
+      "params": {
+        "place_height": 0.05,
+        "release_height": 0.08,
+        "retreat_height": 0.15,
+        "position_tolerance": 0.04,
+        "approach_steps": 500,
+        "descend_steps": 300,
+        "release_steps": 50,
+        "retreat_steps": 250
+      }
+    }
+  ]
+}

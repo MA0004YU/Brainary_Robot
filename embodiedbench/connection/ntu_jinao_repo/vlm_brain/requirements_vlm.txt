@@ -1,0 +1,16 @@
+# Qwen3-VL inference dependencies.
+# If your installed transformers does not expose Qwen3VLForConditionalGeneration,
+# install the latest source version:
+#   pip install git+https://github.com/huggingface/transformers
+transformers
+accelerate
+qwen-vl-utils
+pillow
+jsonschema
+huggingface_hub
+torch
+peft
+
+# Optional backends / memory savers.
+# bitsandbytes
+# vllm

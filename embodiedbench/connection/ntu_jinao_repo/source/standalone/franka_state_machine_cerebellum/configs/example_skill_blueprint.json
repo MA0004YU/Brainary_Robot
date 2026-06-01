@@ -1,0 +1,228 @@
+{
+  "blueprint_id": "bp_pick_place_000001",
+  "task": "pick cube and place cube on sampled tabletop target",
+  "execution_graph": {
+    "start": "s1",
+    "nodes": {
+      "s1": {
+        "type": "skill",
+        "skill": "move_above",
+        "target": "cube",
+        "params": {
+          "height_offset": 0.12,
+          "xy_offset": [0.0, 0.0],
+          "speed": 0.08,
+          "position_tolerance": 0.018,
+          "timeout_steps": 400
+        },
+        "performance_query": [
+          "success",
+          "execution_steps",
+          "execution_time",
+          "trajectory_length",
+          "final_ee_position_error",
+          "timeout",
+          "failure_reason",
+          "min_ee_object_distance",
+          "gripper_width_start",
+          "gripper_width_end",
+          "gripper_command_final"
+        ],
+        "next": "s2",
+        "on_failure": "t_failure"
+      },
+      "s2": {
+        "type": "skill",
+        "skill": "descend",
+        "target": "cube",
+        "params": {
+          "target_height": 0.025,
+          "relative_z": null,
+          "speed": 0.035,
+          "position_tolerance": 0.025,
+          "timeout_steps": 220
+        },
+        "performance_query": [
+          "success",
+          "execution_steps",
+          "trajectory_length",
+          "final_ee_position_error",
+          "ee_object_distance",
+          "min_ee_object_distance",
+          "timeout",
+          "failure_reason"
+        ],
+        "next": "s3",
+        "on_failure": "t_failure"
+      },
+      "s3": {
+        "type": "skill",
+        "skill": "grasp",
+        "target": "cube",
+        "params": {
+          "close_wait_steps": 80,
+          "check": "object_in_gripper",
+          "timeout_steps": 100
+        },
+        "performance_query": [
+          "success",
+          "execution_steps",
+          "execution_time",
+          "object_lift_delta",
+          "ee_object_distance",
+          "gripper_width_start",
+          "gripper_width_end",
+          "gripper_command_final",
+          "timeout",
+          "failure_reason"
+        ],
+        "next": "c1",
+        "on_failure": "t_failure"
+      },
+      "s4": {
+        "type": "skill",
+        "skill": "lift",
+        "target": "cube",
+        "params": {
+          "lift_height": 0.18,
+          "speed": 0.08,
+          "position_tolerance": 0.025,
+          "timeout_steps": 260
+        },
+        "performance_query": [
+          "success",
+          "execution_steps",
+          "trajectory_length",
+          "final_ee_position_error",
+          "object_lift_delta",
+          "ee_object_distance",
+          "min_ee_object_distance",
+          "timeout",
+          "failure_reason"
+        ],
+        "next": "s5",
+        "on_failure": "t_failure"
+      },
+      "c1": {
+        "type": "condition",
+        "condition": {
+          "name": "object_in_gripper",
+          "object": "cube",
+          "min_lift_delta": 0.03,
+          "max_ee_object_distance": 0.08
+        },
+        "if_true": "s4",
+        "if_false": "t_failure_grasp"
+      },
+      "s5": {
+        "type": "skill",
+        "skill": "move_above",
+        "target": "target",
+        "params": {
+          "height_offset": 0.14,
+          "xy_offset": [0.0, 0.0],
+          "speed": 0.08,
+          "position_tolerance": 0.035,
+          "timeout_steps": 350
+        },
+        "performance_query": [
+          "success",
+          "execution_steps",
+          "trajectory_length",
+          "final_ee_position_error",
+          "object_target_xy_distance",
+          "timeout",
+          "failure_reason"
+        ],
+        "next": "s6",
+        "on_failure": "t_failure"
+      },
+      "s6": {
+        "type": "skill",
+        "skill": "place",
+        "target": "target",
+        "params": {
+          "place_height": 0.045,
+          "release_height": 0.08,
+          "open_wait_steps": 60,
+          "position_tolerance": 0.035,
+          "target_tolerance": 0.05,
+          "timeout_steps": 320
+        },
+        "performance_query": [
+          "success",
+          "execution_steps",
+          "execution_time",
+          "trajectory_length",
+          "final_ee_position_error",
+          "object_target_xy_distance",
+          "final_position_error",
+          "object_displacement",
+          "object_stability",
+          "gripper_width_start",
+          "gripper_width_end",
+          "gripper_command_final",
+          "max_contact_force",
+          "collision_count",
+          "timeout",
+          "failure_reason"
+        ],
+        "next": "c2",
+        "on_failure": "t_failure"
+      },
+      "c2": {
+        "type": "condition",
+        "condition": {
+          "name": "object_near_target",
+          "object": "cube",
+          "target": "target",
+          "max_xy_error": 0.05,
+          "max_z_error": 0.08
+        },
+        "if_true": "s7",
+        "if_false": "t_failure_place"
+      },
+      "s7": {
+        "type": "skill",
+        "skill": "retreat",
+        "target": "current",
+        "params": {
+          "retreat_height": 0.15,
+          "speed": 0.08,
+          "timeout_steps": 180
+        },
+        "performance_query": [
+          "success",
+          "execution_steps",
+          "trajectory_length",
+          "final_ee_position_error",
+          "timeout",
+          "failure_reason",
+          "gripper_width_start",
+          "gripper_width_end"
+        ],
+        "next": "t_success",
+        "on_failure": "t_failure"
+      },
+      "t_success": {
+        "type": "terminal",
+        "result": "success"
+      },
+      "t_failure": {
+        "type": "terminal",
+        "result": "failure",
+        "failure_reason": "skill_failed"
+      },
+      "t_failure_grasp": {
+        "type": "terminal",
+        "result": "failure",
+        "failure_reason": "object_not_in_gripper"
+      },
+      "t_failure_place": {
+        "type": "terminal",
+        "result": "failure",
+        "failure_reason": "object_not_near_target"
+      }
+    }
+  }
+}

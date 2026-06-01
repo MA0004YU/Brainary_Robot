@@ -1,0 +1,24 @@
+{
+  "model": {
+    "skill_embedding_dim": 8,
+    "target_embedding_dim": 6,
+    "hidden_dims": [128, 128, 64],
+    "dropout": 0.1,
+    "activation": "gelu"
+  },
+  "training": {
+    "epochs": 100,
+    "batch_size": 64,
+    "lr": 0.001,
+    "weight_decay": 0.0001,
+    "num_workers": 0,
+    "grad_clip_norm": 5.0,
+    "seed": 0
+  },
+  "loss_weights": {
+    "success": 1.0,
+    "timeout": 1.0,
+    "failure_reason": 1.0,
+    "regression": 1.0
+  }
+}

@@ -1,0 +1,66 @@
+index,feature_name,group,description,unit_or_range,source_field,notes
+0,ee_x,scene_absolute,末端执行器世界坐标 X,m,scene_state_before.ee_pose[0],pose 7 维时取前 3 维位置
+1,ee_y,scene_absolute,末端执行器世界坐标 Y,m,scene_state_before.ee_pose[1],
+2,ee_z,scene_absolute,末端执行器世界坐标 Z,m,scene_state_before.ee_pose[2],
+3,cube_x,scene_absolute,物体 cube 世界坐标 X,m,scene_state_before.cube_pose[0],
+4,cube_y,scene_absolute,物体 cube 世界坐标 Y,m,scene_state_before.cube_pose[1],
+5,cube_z,scene_absolute,物体 cube 世界坐标 Z,m,scene_state_before.cube_pose[2],
+6,target_x,scene_absolute,放置目标世界坐标 X,m,scene_state_before.target_pose[0],
+7,target_y,scene_absolute,放置目标世界坐标 Y,m,scene_state_before.target_pose[1],
+8,target_z,scene_absolute,放置目标世界坐标 Z,m,scene_state_before.target_pose[2],
+9,gripper_width,scene_absolute,夹爪开口宽度,m,scene_state_before.gripper_width,
+10,ee_cube_dx,scene_relative,ee 到 cube 的 X 差值 (cube - ee),m,computed,
+11,ee_cube_dy,scene_relative,ee 到 cube 的 Y 差值 (cube - ee),m,computed,
+12,ee_cube_dz,scene_relative,ee 到 cube 的 Z 差值 (cube - ee),m,computed,
+13,ee_target_dx,scene_relative,ee 到 target 的 X 差值 (target - ee),m,computed,
+14,ee_target_dy,scene_relative,ee 到 target 的 Y 差值 (target - ee),m,computed,
+15,ee_target_dz,scene_relative,ee 到 target 的 Z 差值 (target - ee),m,computed,
+16,cube_target_dx,scene_relative,cube 到 target 的 X 差值 (target - cube),m,computed,
+17,cube_target_dy,scene_relative,cube 到 target 的 Y 差值 (target - cube),m,computed,
+18,cube_target_dz,scene_relative,cube 到 target 的 Z 差值 (target - cube),m,computed,
+19,ee_cube_dist,scene_distance,ee 到 cube 的欧氏距离,m,computed,
+20,ee_target_dist,scene_distance,ee 到 target 的欧氏距离,m,computed,
+21,cube_target_dist,scene_distance,cube 到 target 的欧氏距离,m,computed,
+22,cube_target_xy_dist,scene_distance,cube 到 target 的 XY 平面距离,m,computed,仅使用 x/y
+23,height_offset,skill_param,技能参数: 目标高度偏移,m,skill_params.height_offset 或 parallel goals,缺失时 value=0
+24,has_height_offset,skill_param_mask,height_offset 是否存在,0/1,derived,1 表示该参数在本 sample 中有效
+25,xy_offset_x,skill_param,技能参数: XY 偏移 X,m,skill_params.xy_offset[0],缺失时 value=0
+26,has_xy_offset_x,skill_param_mask,xy_offset_x 是否存在,0/1,derived,
+27,xy_offset_y,skill_param,技能参数: XY 偏移 Y,m,skill_params.xy_offset[1],缺失时 value=0
+28,has_xy_offset_y,skill_param_mask,xy_offset_y 是否存在,0/1,derived,
+29,speed,skill_param,技能参数: 位置移动速度,m/step,skill_params.speed,缺失时 value=0
+30,has_speed,skill_param_mask,speed 是否存在,0/1,derived,
+31,position_tolerance,skill_param,技能参数: 位置收敛容差,m,skill_params.position_tolerance,缺失时 value=0
+32,has_position_tolerance,skill_param_mask,position_tolerance 是否存在,0/1,derived,
+33,timeout_steps,skill_param,技能参数: 最大执行步数,steps,skill_params.timeout_steps,缺失时 value=0
+34,has_timeout_steps,skill_param_mask,timeout_steps 是否存在,0/1,derived,
+35,target_height,skill_param,技能参数: 目标绝对高度 Z,m,skill_params.target_height,descend 常用
+36,has_target_height,skill_param_mask,target_height 是否存在,0/1,derived,
+37,relative_z,skill_param,技能参数: 相对 Z 下降量,m,skill_params.relative_z,descend 可选
+38,has_relative_z,skill_param_mask,relative_z 是否存在,0/1,derived,
+39,close_wait_steps,skill_param,技能参数: 夹爪闭合等待步数,steps,skill_params.close_wait_steps,grasp 常用
+40,has_close_wait_steps,skill_param_mask,close_wait_steps 是否存在,0/1,derived,
+41,lift_height,skill_param,技能参数: 抬升高度,m,skill_params.lift_height,lift 常用
+42,has_lift_height,skill_param_mask,lift_height 是否存在,0/1,derived,
+43,place_height,skill_param,技能参数: 放置高度,m,skill_params.place_height,place 常用
+44,has_place_height,skill_param_mask,place_height 是否存在,0/1,derived,
+45,release_height,skill_param,技能参数: 释放后抬升高度,m,skill_params.release_height,place 常用
+46,has_release_height,skill_param_mask,release_height 是否存在,0/1,derived,
+47,open_wait_steps,skill_param,技能参数: 夹爪张开等待步数,steps,skill_params.open_wait_steps,place 常用
+48,has_open_wait_steps,skill_param_mask,open_wait_steps 是否存在,0/1,derived,
+49,target_tolerance,skill_param,技能参数: 放置目标容差,m,skill_params.target_tolerance,place 常用
+50,has_target_tolerance,skill_param_mask,target_tolerance 是否存在,0/1,derived,
+51,retreat_height,skill_param,技能参数: 撤退抬升高度,m,skill_params.retreat_height,retreat 常用
+52,has_retreat_height,skill_param_mask,retreat_height 是否存在,0/1,derived,
+53,wait_steps,skill_param,技能参数: 等待步数,steps,skill_params.wait_steps,wait 常用
+54,has_wait_steps,skill_param_mask,wait_steps 是否存在,0/1,derived,
+55,orientation_tolerance,skill_param,技能参数: 姿态收敛容差,rad,skill_params.orientation_tolerance,align_orientation / parallel
+56,has_orientation_tolerance,skill_param_mask,orientation_tolerance 是否存在,0/1,derived,
+57,angular_speed,skill_param,技能参数: 姿态调整角速度,rad/step,skill_params.angular_speed,align_orientation / parallel
+58,has_angular_speed,skill_param_mask,angular_speed 是否存在,0/1,derived,
+59,has_position_goal,parallel,parallel 节点是否包含 position_goal,0/1,skill_params.goals,仅 parallel 节点
+60,has_orientation_goal,parallel,parallel 节点是否包含 orientation_goal,0/1,skill_params.goals,仅 parallel 节点
+61,position_goal_speed,parallel,parallel 位置子目标速度,m/step,goals.position_goal.params.speed,
+62,orientation_goal_angular_speed,parallel,parallel 姿态子目标角速度,rad/step,goals.orientation_goal.params.angular_speed,
+63,position_goal_tolerance,parallel,parallel 位置子目标容差,m,goals.position_goal.params.position_tolerance,
+64,orientation_goal_tolerance,parallel,parallel 姿态子目标容差,rad,goals.orientation_goal.params.orientation_tolerance,
