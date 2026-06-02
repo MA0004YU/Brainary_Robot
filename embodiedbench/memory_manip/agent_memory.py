@@ -140,6 +140,7 @@ class EmbodiedManipulationMemorySystem:
         *,
         success: bool,
         extra: Optional[Dict[str, Any]] = None,
+        blueprint_skills: Optional[List[str]] = None,
     ) -> None:
         """
         Consolidate working memory into episodic memory at episode end.
@@ -175,6 +176,9 @@ class EmbodiedManipulationMemorySystem:
                 feedback=ar.feedback,
                 reasoning=ar.reasoning,
             ))
+
+        # Attach Blueprint skill sequence from the spine brain (if provided)
+        record.blueprint_skills = list(blueprint_skills) if blueprint_skills else []
 
         # Compute importance score before persisting
         breakdown = self._scorer.compute(record, semantic=self.semantic)
@@ -215,6 +219,85 @@ class EmbodiedManipulationMemorySystem:
         self.episodic.decay_activations()
         pruned = self.episodic.prune()
         return {"pruned": pruned, "activation_stats": self.episodic.get_activation_stats()}
+
+    # -----------------------------------------------------------------------
+    # Spine brain bridge
+    # -----------------------------------------------------------------------
+
+    def record_blueprint_execution(
+        self,
+        task_instruction: str,
+        blueprint_skills: List[str],
+        success: bool,
+        scene_state: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Record the result of a Blueprint execution from the spine brain.
+
+        Call this after franka_state_machine_cerebellum finishes a blueprint.
+        Updates TaskSchema with the skill sequence so the VLM Brain can
+        reference a known-good ordering on the next attempt.
+
+        Parameters
+        ----------
+        task_instruction : natural language task string
+        blueprint_skills : ordered skill names executed, e.g.
+                           ["move_above", "descend", "grasp", "lift", "place", "retreat"]
+        success          : whether the full blueprint execution succeeded
+        scene_state      : optional scene_state dict from the spine brain
+                           (keys: cube_pose, target_pose, ee_pose, gripper_width)
+        """
+        self.semantic.task_schema.record_blueprint_skills(
+            task_instruction, blueprint_skills, success
+        )
+        self.semantic.save()
+        if scene_state:
+            self.working.observation.update_scene(
+                text=json.dumps(scene_state, ensure_ascii=False)
+            )
+
+    def query_vlm_context(
+        self,
+        task_instruction: str,
+    ) -> Dict[str, Any]:
+        """Return structured memory context for VLM Brain input.
+
+        Designed to be serialized and written alongside scene_state.json so
+        the VLM Brain can make better-informed blueprint decisions.
+
+        Returns
+        -------
+        dict with keys:
+          task_type                  : str
+          task_success_rate          : float | None
+          recommended_blueprint_skills : list[str]  – from successful history
+          object_location_priors     : {obj_name: top_location}
+          similar_episodes           : list of lightweight episode summaries
+        """
+        schema = self.semantic.query_task_schema(task_instruction)
+        similar = self.episodic.query_similar(task_instruction, top_k=3)
+
+        object_priors: Dict[str, str] = {}
+        for obj_name in ["cube", "target"]:
+            kb = self.semantic.query_object(obj_name)
+            likely = kb.get("likely_locations", [])
+            if likely:
+                object_priors[obj_name] = likely[0][0]
+
+        return {
+            "task_type": schema.get("task_type"),
+            "task_success_rate": schema.get("success_rate"),
+            "recommended_blueprint_skills": schema.get("blueprint_skills", []),
+            "object_location_priors": object_priors,
+            "similar_episodes": [
+                {
+                    "episode_id": r.episode_id,
+                    "task": r.task_instruction,
+                    "success": r.success,
+                    "blueprint_skills": r.blueprint_skills,
+                }
+                for r in similar
+            ],
+        }
 
     # -----------------------------------------------------------------------
     # Planning_module bridge

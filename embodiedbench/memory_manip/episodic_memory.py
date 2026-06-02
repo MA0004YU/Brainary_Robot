@@ -150,6 +150,11 @@ class EpisodeRecord:
 
     extra: Dict[str, Any] = field(default_factory=dict)
 
+    # Blueprint skill sequence executed by the spine brain (franka_state_machine_cerebellum).
+    # Stored in execution order, e.g. ["move_above", "descend", "grasp", "lift", "place", "retreat"].
+    # Empty list when episode was run in legacy SAPIEN mode.
+    blueprint_skills: List[str] = field(default_factory=list)
+
     def add_step(self, step: StepRecord) -> None:
         """Append a step and update the objects_encountered aggregate."""
         self.steps.append(step)
@@ -179,6 +184,7 @@ class EpisodeRecord:
             "objects_encountered": self.objects_encountered,
             "intent": self.intent,
             "extra": self.extra,
+            "blueprint_skills": self.blueprint_skills,
         }
 
     @classmethod
@@ -200,6 +206,7 @@ class EpisodeRecord:
         )
         record.steps = steps
         record.objects_encountered = d.get("objects_encountered", {})
+        record.blueprint_skills = d.get("blueprint_skills", [])
         return record
 
 

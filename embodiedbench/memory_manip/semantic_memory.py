@@ -169,6 +169,30 @@ class TaskSchema:
         ttype = self.infer_type(instruction)
         return self._data.get(ttype, {}).get("common_steps", [])
 
+    def record_blueprint_skills(
+        self, instruction: str, skills: List[str], success: bool
+    ) -> None:
+        """Record Blueprint skill sequence used by the spine brain for this task type.
+
+        Only successful executions update the recommended sequence so that
+        the VLM Brain can reference a known-good skill ordering next time.
+        Spine brain skill names: move_above, descend, grasp, lift, place, retreat, etc.
+        """
+        if not skills:
+            return
+        ttype = self.infer_type(instruction)
+        rec = self._data.setdefault(
+            ttype, {"success_count": 0, "fail_count": 0, "common_steps": [], "blueprint_skills": []}
+        )
+        rec.setdefault("blueprint_skills", [])
+        if success:
+            rec["blueprint_skills"] = list(skills)
+
+    def get_blueprint_skills(self, instruction: str) -> List[str]:
+        """Return the recommended Blueprint skill sequence for this task type."""
+        ttype = self.infer_type(instruction)
+        return list(self._data.get(ttype, {}).get("blueprint_skills", []))
+
     def to_dict(self) -> Dict[str, Any]:
         return dict(self._data)
 
@@ -301,6 +325,10 @@ class SemanticMemory:
 
             action_sequence = [s.action for s in rec.steps]
             self.task_schema.record_episode(rec.task_instruction, rec.success, action_sequence)
+            if rec.blueprint_skills:
+                self.task_schema.record_blueprint_skills(
+                    rec.task_instruction, rec.blueprint_skills, rec.success
+                )
 
             # Build spatial edges from consecutive location changes
             prev_loc: Optional[str] = None
@@ -330,6 +358,7 @@ class SemanticMemory:
             "task_type": TaskSchema.infer_type(instruction),
             "success_rate": self.task_schema.get_success_rate(instruction),
             "common_steps": self.task_schema.get_common_steps(instruction),
+            "blueprint_skills": self.task_schema.get_blueprint_skills(instruction),
         }
 
     def summary(self) -> Dict[str, Any]:
