@@ -177,6 +177,106 @@ ManipPlanner 在新架构里需要被完全替换或重写。有两条路：
 
 ---
 
+## 模块六：Management ❌ 与脊脑完全断路，需协调层
+
+**所在路径**：`embodiedbench/management/`
+
+### 模块结构
+
+| 文件 | 类 | 作用 |
+|------|----|------|
+| `body_protocol.py` | `RobotWalkBody`（Protocol）| 机器人本体接口：`get_camera_images()` + `set_velocity_command(vx, vy, yaw_rate, period)` |
+| `heuristic_policy.py` | `BrightnessAvoidancePolicy` | 启发式避障策略：用摄像头亮度判断障碍，输出速度指令 |
+| `planning_loop.py` | `TaskPlanningLoop` | 闭环控制主循环：视觉 → 分析 → 决策 → 速度指令，可配置频率（Hz） |
+| `sapien_velocity_body.py` | `SapienVelocityBody` | SAPIEN 移动机器人本体（仿真） |
+| `repair_walk_body.py` | `RepairWalkBody` | 真实机器人本体，通过 DDS 接入 `g1_walk_controller`（疑似 Unitree G1 人形机器人）|
+
+### 这个模块是做什么的
+
+Management 是一个**移动底盘导航控制循环**，设计用于会走路的机器人（移动底盘或人形机器人），核心数据流为：
+
+```
+摄像头图像 → BrightnessAvoidancePolicy 分析 → (vx, vy, yaw_rate) → RobotWalkBody.set_velocity_command()
+```
+
+这和脊脑（`franka_state_machine_cerebellum`）的 Franka 机械臂操作是**完全不同的机器人域**。
+
+### 对脊脑的兼容性问题
+
+| 问题 | 说明 |
+|------|------|
+| ❌ 输出格式完全不同 | Management 输出速度指令 `(vx, vy, yaw_rate, period)`，脊脑需要 `skill_blueprint` JSON，两者没有任何数据交换接口 |
+| ❌ 无 Blueprint 概念 | `TaskPlanningLoop` 没有 `execution_graph`、技能节点、条件节点等概念，不知道如何生成或消费 Blueprint |
+| ❌ 与记忆/规划模块完全脱节 | `TaskPlanningLoop` 是独立的闭环，不调用 `EmbodiedManipulationMemorySystem`，不调用 VLM Brain，无法参考历史知识 |
+| ❌ SAPIEN 仿真体强依赖 | `SapienVelocityBody` 依赖 `SapienNavigationEngine`，需替换为 Isaac Sim 等效体 |
+| ⚠️ 策略过于简单 | `BrightnessAvoidancePolicy` 仅做亮度阈值判断，无法处理真实场景中的语义障碍物 |
+
+### 关键架构缺口
+
+**如果机器人是移动操作臂（移动底盘 + Franka 臂）**：
+- Management 负责底盘导航（"走到桌子旁"）
+- 脊脑负责机械臂操作（"抓起物体"）
+- **当前缺失**：两者之间没有任何协调层，Management 导航到位后无法触发脊脑开始执行 Blueprint
+
+**如果机器人是纯 Franka 臂（无移动底盘）**：
+- Management 模块与当前脊脑流程完全无关
+
+**如果机器人是人形机器人（G1）**：
+- `RepairWalkBody` 通过 DDS 接 `g1_walk_controller`，是真实机器人接口
+- G1 做操作任务时，双臂控制需要对接脊脑的 Blueprint，但当前 Management 只有速度命令接口，没有手臂操作接口
+
+### 负责同学需要做什么
+
+**Step 1：明确机器人构型**（先确认再动代码）
+
+- 纯 Franka 臂 → Management 模块跳过，直接跑脊脑
+- 移动底盘 + Franka 臂 → 需要写协调层（Step 2）
+- G1 人形 → 需要扩展 `RobotWalkBody` 接口加入手臂控制（Step 3）
+
+**Step 2：写底盘与脊脑的协调层**（移动操作臂场景）
+
+```python
+class MobileManipulatorOrchestrator:
+    def __init__(self, management_loop: TaskPlanningLoop, memory: EmbodiedManipulationMemorySystem):
+        self.nav = management_loop
+        self.memory = memory
+
+    def execute_task(self, task_instruction: str):
+        # 1. 导航阶段：调用 management 移动到目标位置
+        self.nav.navigate_to_target(...)   # 需要新增此方法
+        # 2. 操作阶段：生成 Blueprint 并触发脊脑
+        context = self.memory.query_vlm_context(task_instruction)
+        blueprint = vlm_brain.generate(task_instruction, scene_state, context)
+        spine_brain.execute(blueprint)
+        # 3. 记录结果
+        self.memory.record_blueprint_execution(task_instruction, blueprint_skills, success)
+```
+
+**Step 3：替换 SAPIEN 仿真体为 Isaac Sim**
+
+```python
+class IsaacVelocityBody:
+    """替换 SapienVelocityBody，实现 RobotWalkBody 协议"""
+
+    def start(self) -> None:
+        # 初始化 Isaac Sim 移动机器人场景
+
+    def get_camera_images(self) -> Dict[str, np.ndarray]:
+        # 从 Isaac Sim 相机传感器读取 head/left/right 图像
+
+    def set_velocity_command(self, vx, vy, yaw_rate, period) -> None:
+        # 写入 Isaac Sim ArticulationController 的轮子关节目标速度
+        # 注意：Isaac Sim 的轮子速度单位是 rad/s，需要根据轮径换算
+```
+
+**Step 4：升级 `BrightnessAvoidancePolicy`**
+
+当前策略只用亮度做障碍判断，在真实场景中不可靠。建议：
+- 接入 Perception 模块的 `process_scene()` 输出（语义物体检测）
+- 或使用 Isaac Sim 的 `RangeSensorExtension`（激光雷达）做距离判断
+
+---
+
 ## 模块五：Simulator ⚠️ SAPIEN 专用，需替换
 
 **现状：**
@@ -209,5 +309,10 @@ ManipPlanner 在新架构里需要被完全替换或重写。有两条路：
 | **Planning** | ❌ 不兼容 | 输出 SAPIEN 7D 动作，prompt/解析器与 Blueprint 完全不同架构，需替换或新写 | P0 |
 | **Monitor** | ❌ 未实现 | 只有 NullMonitor；脊脑侧 collision_detected 也有 TODO | P1 |
 | **Simulator** | ⚠️ 需替换 | EBManEnv 是 SAPIEN 专用，Isaac Sim 流程中不涉及，由 Isaac Sim 同学负责 | P0（已知） |
+| **Management** | ❌ 与脊脑断路 | 速度指令接口与 Blueprint JSON 无交集；无记忆/VLM 对接；缺失底盘与机械臂的协调层 | P1（构型确认后） |
 
-**最关键的一条**：ManipPlanner 输出的是 SAPIEN 离散动作，和脊脑需要的 Blueprint JSON 是两套完全不同的架构。如果 Brainary_Robot 的规划器要参与新架构，需要重写 prompt 和解析器；如果只用 jinao 的 VLM Brain 做规划，ManipPlanner 在新流程里可以完全跳过。**需要先确认规划模块的分工**。
+**最关键的两条**：
+
+1. ManipPlanner 输出的是 SAPIEN 离散动作，和脊脑需要的 Blueprint JSON 是两套完全不同的架构。如果 Brainary_Robot 的规划器要参与新架构，需要重写 prompt 和解析器；如果只用 jinao 的 VLM Brain 做规划，ManipPlanner 在新流程里可以完全跳过。**需要先确认规划模块的分工**。
+
+2. Management 模块的优先级取决于机器人构型：纯 Franka 臂可以完全跳过；移动操作臂或 G1 人形机器人则需要写一个协调层把底盘导航和脊脑 Blueprint 执行串联起来。**需要先确认目标机器人平台**。
