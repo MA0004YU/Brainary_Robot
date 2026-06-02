@@ -22,6 +22,15 @@ Public API is backward-compatible with the previous EmbodiedManipulationMemorySy
   record_planner_reasoning, record_discrete_action, record_environment_feedback,
   propose_simulated_outcome, run_monitor,
   query_longterm_memory, snapshot.
+
+Spine brain integration API (new):
+  ingest_scene_state        – parse spine brain scene_state dict into working memory
+  export_vlm_context        – write memory context JSON for VLM Brain to read
+  record_blueprint_execution – feed spine brain execution result back into memory
+  query_vlm_context         – return structured context dict for VLM prompt injection
+
+Module hot-swap API (new):
+  register_perception, register_monitor, register_simulation
 """
 from __future__ import annotations
 
@@ -472,6 +481,92 @@ class EmbodiedManipulationMemorySystem:
     def get_object_location_history(self, obj: str) -> Dict[str, int]:
         """Return {location: frequency} for an object across all stored episodes."""
         return self.episodic.get_object_location_history(obj)
+
+    # -----------------------------------------------------------------------
+    # Module hot-swap API
+    # -----------------------------------------------------------------------
+
+    def register_perception(self, perception: PerceptionInterface) -> None:
+        """Replace the active perception module without recreating the system.
+
+        Called by the Perception team after their VisionPerception class is ready.
+        Until then, NullPerception is used automatically.
+        """
+        self.perception = perception
+
+    def register_monitor(self, monitor: MonitorInterface) -> None:
+        """Replace the active monitor module without recreating the system.
+
+        Called by the Monitor team once SpineConditionMonitor is implemented.
+        """
+        self.monitor = monitor
+
+    def register_simulation(self, simulation: SimulationInterface) -> None:
+        """Replace the active simulation module without recreating the system.
+
+        Called by the Isaac Sim team when a forward model is available.
+        """
+        self.simulation = simulation
+
+    # -----------------------------------------------------------------------
+    # Spine brain scene state ingestion
+    # -----------------------------------------------------------------------
+
+    def ingest_scene_state(self, scene_state: Dict[str, Any]) -> None:
+        """Parse a spine brain scene_state dict into working memory.
+
+        Standard spine brain format (all poses 7D [x, y, z, qw, qx, qy, qz]):
+          {cube_pose, target_pose, ee_pose, gripper_width, robot_joint_pos, step_index}
+
+        Call this every time the Isaac Sim / spine brain pipeline delivers a new
+        scene_state, so that working memory always reflects the current robot state.
+        This replaces the manual calls to update_observation() + update_robot_state()
+        when working with the spine brain scene format.
+        """
+        visible = [k.replace("_pose", "") for k in scene_state if k.endswith("_pose")]
+        self.working.observation.update_scene(
+            text=json.dumps(scene_state, ensure_ascii=False),
+            visible_objects=visible,
+        )
+        ee = scene_state.get("ee_pose")
+        joints = scene_state.get("robot_joint_pos")
+        gripper = scene_state.get("gripper_width")
+        self.working.robot_state.update(
+            gripper_pose=np.asarray(ee, dtype=np.float32) if ee else None,
+            joint_angles=np.asarray(joints, dtype=np.float32) if joints else None,
+            gripper_aperture=float(gripper) if gripper is not None else None,
+        )
+
+    # -----------------------------------------------------------------------
+    # VLM Brain file-based context export
+    # -----------------------------------------------------------------------
+
+    def export_vlm_context(
+        self,
+        task_instruction: str,
+        output_path: Union[str, Path],
+    ) -> Dict[str, Any]:
+        """Write memory context to a JSON file readable by the VLM Brain.
+
+        The VLM Brain (run_vlm_inference.py) reads inputs from files.  Call
+        this before invoking the VLM Brain so historical knowledge is available
+        to build_generation_prompt().  Write is atomic (.tmp → rename).
+
+        Usage (in the evaluation driver or demo script):
+            ctx = memory.export_vlm_context(task, output_dir / "memory_context.json")
+            # Then pass --memory_context memory_context.json to run_vlm_inference.py
+
+        Returns the context dict that was written (for in-process use as well).
+        """
+        import os as _os
+        ctx = self.query_vlm_context(task_instruction)
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(ctx, f, ensure_ascii=False, indent=2)
+        _os.replace(str(tmp), str(path))
+        return ctx
 
     # -----------------------------------------------------------------------
     # Simulation / monitor hooks (unchanged interface)

@@ -316,3 +316,449 @@ class IsaacVelocityBody:
 1. ManipPlanner 输出的是 SAPIEN 离散动作，和脊脑需要的 Blueprint JSON 是两套完全不同的架构。如果 Brainary_Robot 的规划器要参与新架构，需要重写 prompt 和解析器；如果只用 jinao 的 VLM Brain 做规划，ManipPlanner 在新流程里可以完全跳过。**需要先确认规划模块的分工**。
 
 2. Management 模块的优先级取决于机器人构型：纯 Franka 臂可以完全跳过；移动操作臂或 G1 人形机器人则需要写一个协调层把底盘导航和脊脑 Blueprint 执行串联起来。**需要先确认目标机器人平台**。
+
+---
+
+---
+
+# 各模块适配工作清单（详细分工指南）
+
+> 本节是上方审查结论的行动版本。每个模块的负责同学按照本节指南操作。  
+> Memory 模块已完成改造（见下文 §Memory 已完成项），其他模块按需调用即可。
+
+---
+
+## Memory 模块已完成的改动（2026-06-02）
+
+> 改动文件：`embodiedbench/memory_manip/agent_memory.py`、`embodiedbench/memory_manip/interfaces.py`
+
+以下接口已可直接调用，无需再改 memory 代码：
+
+| 新增方法 | 作用 |
+|---------|------|
+| `memory.register_perception(p)` | 感知模块就绪后热插拔，替换 NullPerception |
+| `memory.register_monitor(m)` | Monitor 就绪后热插拔，替换 NullMonitor |
+| `memory.register_simulation(s)` | Isaac Sim 前向模型就绪后热插拔 |
+| `memory.ingest_scene_state(scene_state)` | 把脊脑格式的 scene_state 写入 working memory（robot_state + observation） |
+| `memory.export_vlm_context(task, path)` | 把历史知识写成 JSON 文件，供 VLM Brain 读取 |
+| `memory.record_blueprint_execution(task, skills, success, scene_state)` | 脊脑执行完毕后回写结果，更新 TaskSchema |
+| `memory.query_vlm_context(task)` | 返回结构化历史上下文 dict（可直接注入 prompt） |
+
+`interfaces.py` 中已补全各接口的实现模板注释，包含 `VisionPerception`、`SpineConditionMonitor`、`IsaacForwardModel` 的骨架代码。
+
+---
+
+## 感知（Perception）模块适配工作
+
+**负责同学**：感知模块开发者  
+**文件**：`embodiedbench/perception/perception_inference.py`，新建 `embodiedbench/perception/vision_perception.py`
+
+### 与 Memory 连接
+
+**目标**：让感知结果进入 memory 的 working memory（目前两者互不认识）。
+
+**原因**：Memory 中的 `working.observation` 存的是空壳或文字，没有真实感知信息。VLM Brain 最终生成的 Blueprint 质量高度依赖感知输出的准确性；如果感知不写入 memory，历史场景知识就无法积累。
+
+**需要做的事**：
+
+1. 实现 `VisionPerception(PerceptionInterface)`，放在 `embodiedbench/perception/vision_perception.py`：
+
+```python
+from embodiedbench.memory_manip.interfaces import PerceptionInterface
+import numpy as np
+
+class VisionPerception(PerceptionInterface):
+    def extract_features(self, observation, *, meta=None):
+        image_paths = observation.get("image_paths", [])
+        # 调用现有 perception_inference.py 的检测逻辑
+        # 返回 scene_state 格式（供 memory 和 VLM Brain 使用）
+        scene_state = self._detect_objects(image_paths)
+        # 把 scene_state 存到 meta 供驱动脚本使用
+        if meta is not None:
+            meta["scene_state"] = scene_state
+        # 同时返回特征向量（可先返回 zeros，后续扩展）
+        return np.zeros((1, 64, 512), dtype=np.float32)
+
+    def _detect_objects(self, image_paths):
+        # 整合 perception_inference.py 的 process_scene() 输出
+        # 组装成脊脑格式：
+        # {cube_pose, target_pose, ee_pose, gripper_width, robot_joint_pos, step_index}
+        ...
+```
+
+2. 在评估器或 demo 驱动脚本中注册：
+
+```python
+from embodiedbench.perception.vision_perception import VisionPerception
+memory.register_perception(VisionPerception())
+```
+
+3. 评估器调用 `memory.run_perception(obs)` 时传入 `meta={}` 并取出 `scene_state`：
+
+```python
+meta = {}
+memory.run_perception({"image_paths": img_path_list, "obs": obs}, meta=meta)
+scene_state = meta.get("scene_state")  # 用于后续写文件给 VLM Brain
+```
+
+### 与脊脑连接
+
+**目标**：感知模块输出的格式必须与脊脑 `scene_state.json` 完全匹配。
+
+**需要做的事**：
+
+写 `scene_state_adapter.py`（已在 audit 模块一节描述），合并感知输出（cube/target pose）与机器人本体状态（ee_pose/gripper_width/joint_pos）：
+
+```python
+# embodiedbench/perception/scene_state_adapter.py
+def build_scene_state(perception_out, robot_state, step_index=0):
+    objects = {obj["name"].rsplit("_", 1)[0]: obj["pose"]
+               for obj in perception_out.get("objects", [])}
+    return {
+        "cube_pose":       objects.get("cube"),
+        "target_pose":     objects.get("target"),
+        "ee_pose":         robot_state["ee_pose"],
+        "gripper_width":   robot_state["gripper_width"],
+        "robot_joint_pos": robot_state["joint_pos"],
+        "step_index":      step_index,
+    }
+```
+
+机器人本体状态（ee_pose、gripper_width、joint_pos）由 **Isaac Sim** 提供，感知模块不负责这部分。
+
+---
+
+## 规划（Planning / VLM Brain）模块适配工作
+
+**负责同学**：规划模块（jinao VLM Brain）开发者  
+**文件**：`embodiedbench/connection/ntu_jinao_repo/vlm_brain/run_vlm_inference.py`
+
+### 与 Memory 连接
+
+**目标**：VLM Brain 生成 Blueprint 前，先读取 memory 的历史知识（成功率、推荐技能序列、物体位置先验）。
+
+**原因**：当前 `build_generation_prompt()` 只接受 `task + scene_state`，不知道历史经验。Memory 中积累的 Blueprint 技能序列（`recommended_blueprint_skills`）可以直接作为 prompt 中的参考，提升生成质量。
+
+**需要做的事**：
+
+**方案 A（推荐，文件解耦）**：Memory 把历史上下文写成文件，VLM Brain 读文件。不改架构，最安全。
+
+1. 在驱动脚本（demo 或评估器）中，VLM Brain 调用之前写文件：
+
+```python
+# 在调用 run_vlm_inference.py 之前
+memory.export_vlm_context(task_instruction, output_dir / "memory_context.json")
+```
+
+2. 修改 `run_vlm_inference.py`，新增 `--memory_context` 参数：
+
+```python
+parser.add_argument("--memory_context", default=None,
+                    help="Path to memory_context.json written by memory.export_vlm_context()")
+```
+
+3. 修改 `build_generation_prompt()` 接受并注入 memory_context：
+
+```python
+def build_generation_prompt(task, scene_state, memory_context=None):
+    memory_section = ""
+    if memory_context:
+        rate = memory_context.get("task_success_rate")
+        skills = memory_context.get("recommended_blueprint_skills", [])
+        similar = memory_context.get("similar_episodes", [])
+        if rate is not None:
+            memory_section += f"\n## Historical performance\nSuccess rate for this task type: {rate:.1%}\n"
+        if skills:
+            memory_section += f"Previously successful skill sequence: {skills}\n"
+        if similar:
+            memory_section += "Similar past episodes:\n"
+            for ep in similar[:2]:
+                memory_section += f"  - {ep['task']} → {'✓' if ep['success'] else '✗'} skills={ep['blueprint_skills']}\n"
+    return (
+        f"{system_prompt}\n\n"
+        f"{memory_section}"
+        f"{generation_prompt}\n\n"
+        ...
+    )
+```
+
+4. 在 `main()` 中读取并传入：
+
+```python
+memory_context = None
+if args.memory_context:
+    memory_context = _read_json(Path(args.memory_context))
+prompt = build_generation_prompt(args.task, scene_state, memory_context)
+```
+
+**方案 B（进程内调用）**：如果 VLM Brain 和 memory 在同一进程中运行：
+
+```python
+from embodiedbench.memory_manip import EmbodiedManipulationMemorySystem
+memory = EmbodiedManipulationMemorySystem(...)
+ctx = memory.query_vlm_context(task)
+prompt = build_generation_prompt(task, scene_state, ctx)
+```
+
+### 脊脑执行结果回写 Memory
+
+**目标**：脊脑执行完一次 Blueprint 后，把结果（成功/失败、执行的技能序列）写回 memory，让下次规划能参考。
+
+**需要做的事**：在执行完成后调用（由驱动脚本负责，不需要 VLM Brain 内部改动）：
+
+```python
+memory.record_blueprint_execution(
+    task_instruction=task,
+    blueprint_skills=["move_above", "descend", "grasp", "lift", "place", "retreat"],
+    success=True,
+    scene_state=final_scene_state,  # 最终场景状态（可选）
+)
+```
+
+---
+
+## Monitor 模块适配工作
+
+**负责同学**：Monitor / 安全监控开发者  
+**文件**：`embodiedbench/memory_manip/interfaces.py`（参考模板），新建 `embodiedbench/monitor/spine_monitor.py`
+
+### 与 Memory 连接
+
+**目标**：用脊脑执行结果驱动 memory 的 monitor 钩子，让 memory 能感知执行异常并记录里程碑。
+
+**原因**：当前 `NullMonitor` 永远返回 OK，memory 永远不知道执行过程中发生了碰撞或超时。Monitor 回报 `ok=False` 时，memory 会在 working memory 的 clock 中添加 `monitor_alert` 里程碑，这个里程碑会被 episode 记录下来，供未来分析。
+
+**需要做的事**：
+
+1. 实现 `SpineConditionMonitor`，包装脊脑的 condition_evaluator 结果：
+
+```python
+# embodiedbench/monitor/spine_monitor.py
+from embodiedbench.memory_manip.interfaces import MonitorInterface
+
+class SpineConditionMonitor(MonitorInterface):
+    """读取脊脑 condition_evaluator.py 的执行结果，汇报给 memory。"""
+
+    def check(self, observation, memory_snapshot):
+        # observation 由评估器/驱动脚本在每个 env.step() 后传入
+        # 格式：{"timeout": bool, "collision_detected": bool, "task_success": bool, ...}
+        timeout   = observation.get("timeout", False)
+        collision = observation.get("collision_detected", False)
+        if timeout:
+            return False, "execution_timeout"
+        if collision:
+            return False, "collision_detected"
+        return True, None
+```
+
+2. 注册到 memory：
+
+```python
+from embodiedbench.monitor.spine_monitor import SpineConditionMonitor
+memory.register_monitor(SpineConditionMonitor())
+```
+
+3. 评估器在每个 step 后调用（已有此调用，无需新增）：
+
+```python
+memory.run_monitor({"obs": obs, "timeout": info.get("timeout"), "collision_detected": info.get("collision_detected")})
+```
+
+### 与脊脑连接
+
+**目标**：接收脊脑 `condition_evaluator.py` 的输出，并在上层（大脑）判断是否需要重新规划。
+
+**脊脑侧待补全**：`collision_detected` 条件（`condition_evaluator.py` 第34行 TODO）目前永远返回 False，需力传感器数据接入。这是脊脑同学的任务。
+
+**大脑侧重规划逻辑**（驱动脚本中，非必要步骤）：
+
+```python
+ok = memory.run_monitor(execution_result)
+if not ok:
+    # 监控报警，重新生成 Blueprint
+    memory.export_vlm_context(task, output_dir / "memory_context.json")
+    # 重新调用 run_vlm_inference.py
+```
+
+---
+
+## Simulator（仿真平台）适配工作
+
+**负责同学**：Isaac Sim 集成开发者  
+**文件**：新建 `embodiedbench/envs/isaac_sim/isaac_sim_env.py`；`embodiedbench/memory_manip/interfaces.py` 中的 `SimulationInterface`
+
+### 与 Memory 连接
+
+**目标**：Isaac Sim 提供完整的 `scene_state` dict（含 ee_pose、gripper_width、joint_pos），以便 memory 和 VLM Brain 能使用真实的机器人状态。
+
+**原因**：感知只能提供物体 pose（camera 看到的），末端执行器位姿和关节角度必须来自仿真平台。如果这部分缺失，`scene_state.json` 就是不完整的，脊脑无法正常工作。
+
+**需要做的事**：
+
+1. Isaac Sim 场景每步提供如下 dict，传给大脑驱动脚本：
+
+```python
+robot_state = {
+    "ee_pose":         sim.get_ee_pose(),        # [x,y,z,qw,qx,qy,qz]
+    "gripper_width":   sim.get_gripper_width(),  # float, 单位米
+    "joint_pos":       sim.get_joint_angles(),   # list[float], 7 DOF
+}
+```
+
+2. 驱动脚本把感知输出 + robot_state 合并后写入 scene_state.json，再调用 `memory.ingest_scene_state(scene_state)`：
+
+```python
+scene_state = build_scene_state(perception_out, robot_state, step_index=step)
+memory.ingest_scene_state(scene_state)
+# 写文件供脊脑读取
+with open(output_dir / "scene_state.json", "w") as f:
+    json.dump(scene_state, f)
+```
+
+3. **阶段二（可选）**：实现 `IsaacForwardModel(SimulationInterface)` 以支持 memory 的 `propose_simulated_outcome()`：
+
+```python
+# embodiedbench/envs/isaac_sim/isaac_forward_model.py
+from embodiedbench.memory_manip.interfaces import SimulationInterface
+
+class IsaacForwardModel(SimulationInterface):
+    def predict(self, state_summary, action, *, horizon=1):
+        # 调用 Isaac Sim physics rollout
+        return {"predicted_ee_pose": ..., "predicted_object_pose": ...}
+
+memory.register_simulation(IsaacForwardModel())
+```
+
+### Isaac Sim 与脊脑的连接
+
+**脊脑已实现的接口**（`cerebellum.get_scene_state()`）：
+- 脊脑内部直接调用 Isaac Sim 场景获取 `{ee_pose_w, cube_pose_w, target_pose_w, gripper_width}`
+- 这部分已在脊脑代码中定义，由 Isaac Sim 同学确保 Isaac Sim 场景中的 ArticulationView / RigidPrimView 能正确返回这些值
+
+**Isaac Sim 同学需确认**：
+- Franka 末端执行器的 frame 名（通常是 `panda_hand` 或 `right_fingertip_midpoint`）与脊脑 `get_scene_state()` 中的 query 匹配
+- 物体（cube、target）的 prim path 与脊脑的 `scene_objects` 配置一致
+- 场景重置时（`env.reset()`）确保物体位置正确随机化且返回新的 scene_state
+
+---
+
+## Management 模块适配工作
+
+**负责同学**：移动底盘控制开发者  
+**文件**：`embodiedbench/management/`（现有），新建 `embodiedbench/management/orchestrator.py`
+
+### 与 Memory 连接
+
+**目标**：导航完成后把目标位置信息写入 memory 的 spatial_topo，让 memory 积累空间知识。
+
+**原因**：Management 模块导航过程中经过了哪些位置、在哪里找到了目标，这些都是有价值的空间知识。如果不写入 memory，每次导航都是从零开始，无法利用历史经验。
+
+**前提**：先确认机器人构型（纯臂 / 移动底盘+臂 / G1 人形）。纯臂时本节可跳过。
+
+**需要做的事**（移动操作臂场景）：
+
+```python
+# 导航结束后，把当前位置写入 memory 的 spatial_topo
+memory.semantic.spatial_topo.add_location(
+    location="table_area",
+    pose=[x, y, z, 0, 0, 0, 1]  # 如果有精确位姿
+)
+memory.semantic.spatial_topo.record_object_at("table_area", "cube", count=1)
+memory.semantic.save()
+
+# 导航路径上如果经过多个位置，可建立边（相邻关系）
+memory.semantic.spatial_topo.add_edge("start_pos", "table_area")
+```
+
+### 与脊脑连接（移动操作臂构型）
+
+**目标**：Management 导航到位后，自动触发脊脑执行 Blueprint，形成"导航 → 操作"的串行流程。
+
+**需要做的事**：在 `embodiedbench/management/orchestrator.py` 中新建协调层：
+
+```python
+class MobileManipulatorOrchestrator:
+    """协调底盘导航与机械臂操作两个子系统。"""
+
+    def __init__(self, nav_loop, memory, vlm_brain_runner, spine_brain_client):
+        self.nav = nav_loop           # TaskPlanningLoop
+        self.memory = memory          # EmbodiedManipulationMemorySystem
+        self.vlm = vlm_brain_runner   # 调用 run_vlm_inference.py 的 wrapper
+        self.spine = spine_brain_client  # 调用脊脑执行接口
+
+    def execute_task(self, task_instruction, target_location):
+        # 阶段1：导航
+        nav_success = self.nav.navigate_to(target_location)  # 需在 TaskPlanningLoop 中新增此方法
+        if not nav_success:
+            return False
+
+        # 阶段2：感知 + memory 查询
+        scene_state = self._get_current_scene_state()
+        self.memory.ingest_scene_state(scene_state)
+        ctx_path = self.memory.export_vlm_context(task_instruction, "tmp/memory_context.json")
+
+        # 阶段3：VLM Brain 生成 Blueprint
+        blueprint = self.vlm.generate(task_instruction, scene_state, ctx_path)
+
+        # 阶段4：脊脑执行
+        result = self.spine.execute(blueprint)
+        executed_skills = result.get("executed_skills", [])
+        success = result.get("success", False)
+
+        # 阶段5：结果回写 memory
+        self.memory.record_blueprint_execution(
+            task_instruction, executed_skills, success, scene_state
+        )
+        return success
+```
+
+`SapienVelocityBody` 替换为 `IsaacVelocityBody`（已在审查 §模块六 中给出骨架）。
+
+---
+
+## 整体数据流（改造完成后）
+
+```
+Isaac Sim
+    │
+    ├─► robot_state (ee_pose, gripper_width, joint_pos)
+    │
+感知模块 ──► perception_out (cube_pose, target_pose)
+    │
+    └─► scene_state_adapter.build_scene_state()
+              │
+              ├─► scene_state.json ──────────────────────────► 脊脑
+              │
+              ├─► memory.ingest_scene_state(scene_state)
+              │         │
+              │         └─► working memory 更新 robot_state + observation
+              │
+              └─► memory.export_vlm_context(task, "memory_context.json")
+                        │
+                        ▼
+               VLM Brain (run_vlm_inference.py)
+                   --memory_context memory_context.json
+                   --scene_state scene_state.json
+                   --task task.txt
+                        │
+                        ▼
+               skill_blueprint.json ────────────────────────► 脊脑执行
+                                                                  │
+                                          memory.record_blueprint_execution() ◄─────────┘
+                                                  │
+                                         TaskSchema 更新（下次参考）
+```
+
+---
+
+## 改动优先级排序
+
+| 优先级 | 模块 | 具体任务 | 理由 |
+|--------|------|---------|------|
+| **P0** | Simulator (Isaac Sim) | 提供完整 `robot_state`（ee_pose / gripper_width / joint_pos） | 没有这个，scene_state.json 不完整，脊脑无法运行 |
+| **P0** | Perception | 写 `scene_state_adapter.py`，合并感知输出和 robot_state | scene_state.json 的直接来源 |
+| **P1** | Planning (VLM Brain) | `build_generation_prompt()` 加 `--memory_context` 参数 | 让 memory 知识进入 Blueprint 生成 |
+| **P1** | 驱动脚本（新建） | 串联 memory → export → VLM Brain → 脊脑 → 回写的完整流程 | 当前各模块之间没有调用关系，需要胶水脚本 |
+| **P2** | Monitor | 实现 `SpineConditionMonitor`，读取脊脑执行结果 | 有了才能实现"执行失败 → 重新规划"闭环 |
+| **P3** | Management | 写 `MobileManipulatorOrchestrator`（仅移动底盘构型） | 纯臂场景可跳过 |
+| **P3** | Simulator | 实现 `IsaacForwardModel(SimulationInterface)` | 可选，供 memory 做前向预测用 |
