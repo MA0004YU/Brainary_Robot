@@ -30,6 +30,8 @@ def main() -> None:
     parser.add_argument("--output_json", required=False, default=None)
     parser.add_argument("--validate", default="true")
     parser.add_argument("--dry_run", default="false")
+    parser.add_argument("--memory_context", default=None,
+                        help="Path to memory_context.json written by memory.export_vlm_context().")
     add_experiment_run_args(parser)
     args = parser.parse_args()
 
@@ -51,7 +53,8 @@ def main() -> None:
         parser.error("Provide --output_json or --experiment_run_id / --experiment_run_new.")
     output_dir = output_json.parent
     output_dir.mkdir(parents=True, exist_ok=True)
-    prompt = build_generation_prompt(args.task, scene_state)
+    memory_context = _read_json(Path(args.memory_context)) if args.memory_context else None
+    prompt = build_generation_prompt(args.task, scene_state, memory_context)
 
     if _str_to_bool(args.dry_run):
         (output_dir / "dry_run_prompt.txt").write_text(prompt, encoding="utf-8")
@@ -100,16 +103,44 @@ def main() -> None:
         )
 
 
-def build_generation_prompt(task: str, scene_state: dict[str, Any]) -> str:
+def build_generation_prompt(
+    task: str,
+    scene_state: dict[str, Any],
+    memory_context: dict[str, Any] | None = None,
+) -> str:
     system_prompt = _read_text(VLM_DIR / "prompts" / "system_prompt.md")
     generation_prompt = _read_text(VLM_DIR / "prompts" / "blueprint_generation_prompt.md")
     schema = _read_json(VLM_DIR / "schemas" / "skill_blueprint_schema.json")
     example = _read_json(VLM_DIR / "examples" / "sample_blueprint.json")
+
+    memory_section = ""
+    if memory_context:
+        lines = ["## Memory context (accumulated from past episodes)", ""]
+        rate = memory_context.get("task_success_rate")
+        if rate is not None:
+            lines.append(f"Historical success rate for this task type: {rate:.1%}")
+        skills = memory_context.get("recommended_blueprint_skills", [])
+        if skills:
+            lines.append(f"Previously successful skill sequence: {skills}")
+        priors = memory_context.get("object_location_priors", {})
+        if priors:
+            lines.append(f"Object location priors from memory: {priors}")
+        similar = memory_context.get("similar_episodes", [])
+        if similar:
+            lines.append("Similar past episodes:")
+            for ep in similar[:2]:
+                status = "succeeded" if ep.get("success") else "failed"
+                ep_skills = ep.get("blueprint_skills", [])
+                lines.append(f"  - \"{ep.get('task', '')}\" → {status}, skills={ep_skills}")
+        lines.append("")
+        memory_section = "\n".join(lines) + "\n"
+
     return (
         f"{system_prompt}\n\n"
         f"{generation_prompt}\n\n"
         f"Task instruction:\n{task}\n\n"
         f"Scene state JSON:\n{json.dumps(scene_state, indent=2, ensure_ascii=False)}\n\n"
+        f"{memory_section}"
         f"Available skills:\nmove_above, reach, descend, grasp, lift, place, retreat, wait, align_orientation\n\n"
         f"Available logic:\nskill, condition, parallel, terminal\n\n"
         f"Performance metrics:\nsuccess, execution_steps, execution_time, trajectory_length, final_ee_position, "
