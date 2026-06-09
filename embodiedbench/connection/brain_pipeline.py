@@ -150,10 +150,15 @@ class BrainSpinePipeline:
         # Persist scene_state for traceability
         _write_json(output_dir / "scene_state.json", scene_state)
 
-        # Ingest scene into memory working layer
+        # Start episode lifecycle so working memory is properly initialized
+        self.memory.reset_episode(scene_id=str(output_dir.name))
+        self.memory.begin_task(task)
+
+        # Ingest scene into memory working layer (robot_state + observation)
         self.memory.ingest_scene_state(scene_state)
 
         # Export memory context → JSON file (atomic write)
+        # Reads from semantic + episodic memory accumulated across past episodes
         memory_context = self.memory.export_vlm_context(
             task, output_dir / "memory_context.json"
         )
@@ -333,6 +338,15 @@ class BrainSpinePipeline:
                 success = isaac_success
                 print(f"[record] success overridden from Isaac Lab output: {success}")
 
+        # Close the episode: creates a full EpisodeRecord in episodic memory,
+        # attaches blueprint_skills, computes importance score, and triggers
+        # batch generalization to semantic memory every N episodes.
+        # This is what makes query_vlm_context() → similar_episodes work over time.
+        self.memory.end_episode(success=success, blueprint_skills=skills)
+
+        # Also call record_blueprint_execution for immediate semantic TaskSchema update
+        # (end_episode batches generalization every N episodes; this ensures the
+        # recommended skill sequence is available for the very next prepare() call)
         self.memory.record_blueprint_execution(
             task_instruction=task,
             blueprint_skills=skills,
