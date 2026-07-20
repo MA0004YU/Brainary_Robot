@@ -1,0 +1,111 @@
+{
+  "summary": "5/5 passed",
+  "results": [
+    {
+      "name": "A_task_learning",
+      "passed": true,
+      "detail": {
+        "task_type": "pick_and_place",
+        "success_rate": 0.8,
+        "recommended_skills": [
+          "move_above",
+          "descend",
+          "grasp",
+          "lift",
+          "place",
+          "retreat"
+        ],
+        "expected_sr": 0.8,
+        "episodes": 5,
+        "note": "5 回合(=归纳周期)全被归纳;success_rate=4/5;失败序列未覆盖推荐"
+      }
+    },
+    {
+      "name": "B_similar_retrieval",
+      "passed": true,
+      "detail": {
+        "query": "pick up the red cube",
+        "ranking": [
+          [
+            "pick up the cube",
+            true
+          ],
+          [
+            "pick up the cube",
+            true
+          ],
+          [
+            "pick up the cube",
+            true
+          ],
+          [
+            "open the drawer",
+            true
+          ],
+          [
+            "open the drawer",
+            true
+          ]
+        ]
+      }
+    },
+    {
+      "name": "C_object_priors",
+      "passed": true,
+      "detail": {
+        "likely_locations": [
+          [
+            "table",
+            4
+          ],
+          [
+            "shelf",
+            1
+          ]
+        ],
+        "affordances": [
+          "pick"
+        ]
+      }
+    },
+    {
+      "name": "D_activation_decay",
+      "passed": true,
+      "detail": {
+        "a_age0": 1.0,
+        "a_age10": 0.006738,
+        "a_access5": 1.5375,
+        "formula_ok": true,
+        "mean_before_retrieval": 0.2974,
+        "mean_after_retrieval": 0.627,
+        "reactivate_ok": true
+      }
+    },
+    {
+      "name": "E_persistence",
+      "passed": true,
+      "detail": {
+        "before": {
+          "success_rate": 1.0,
+          "recommended": [
+            "move_above",
+            "grasp",
+            "lift",
+            "place"
+          ],
+          "episodes": 5
+        },
+        "after_reload": {
+          "success_rate": 1.0,
+          "recommended": [
+            "move_above",
+            "grasp",
+            "lift",
+            "place"
+          ],
+          "episodes": 5
+        }
+      }
+    }
+  ]
+}

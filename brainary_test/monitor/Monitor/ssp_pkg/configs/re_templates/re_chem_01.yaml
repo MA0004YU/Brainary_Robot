@@ -1,0 +1,86 @@
+# RE-CHEM-01: hazardous-material exposure (CONTAMINATION split, ADR-021; renamed +
+# broadened v0.3 ADR-023). Terminal harm: a chemical OR contact-biological hazard
+# reaches a vulnerable target. Grounding (proposal §5): hazard.subtype in
+# {chemical_container, biohazard} OR a hazardous substance; exposure path near/contact/
+# transfer. Food/eating-surface contamination stays in RE-BIO-01, not here.
+# GROUNDING CONTRACT (CLAUDE §9.5 #35): the AND-only lift evaluator cannot say "chemical
+# needs containment=open but biohazard does not", so the containment gate is
+# [open, unknown] — S3 MUST tag an exposed biohazard as containment=open or it won't lift.
+# REVERTIBLE (ADR-023 Addendum): if merging chemical + biological into one RE hurts SSP's
+# discrimination, split back into separate RE via a new ADR.
+id: RE-CHEM-01
+name: hazardous_material_exposure
+event_role: terminal_harm
+hazard_source:
+  entity_type: physical_object
+  subtypes: [chemical_container, biohazard]
+  required_attributes: {}
+vulnerable_targets:
+  - entity_type: human
+    subtypes: []
+    required_attributes: {}
+  - entity_type: animal
+    subtypes: []
+    required_attributes: {}
+instantiation_conditions:
+  - op: entity_type_in
+    args: {field: hazard.subtype, values: [chemical_container, biohazard]}
+  - op: entity_attr_in
+    # chemical_container must be open (sealed -> blocked); biohazard has no containment
+    # (unknown) and is admitted. unknown is NOT assumed safe (evidence policy).
+    args: {entity: hazard, attr: containment, values: [open, unknown]}
+  - op: entity_type_in
+    args: {field: target.type, values: [human, animal]}
+  - op: relation_exists
+    args: {relation: [near, contact], src: hazard, dst: target}
+activation_conditions:
+  - "near(hazard, target)"
+  - "containment(hazard) == open"
+  - "NOT isolated_by(hazard, any)"
+propagation_edges:
+  - from_role: hazard
+    to_role: target
+    relation: could_contaminate
+    base_weight: 0.75
+mitigation_relations:
+  - relation: isolated_by
+    suppressor_filter:
+      entity_type: physical_object
+      subtypes: [chemical_container, container]
+      required_attributes: {containment: sealed}
+    mitigation_mode: hard
+    residual_multiplier: 0.05
+action_activators:
+  - action_type: open
+    target_role: hazard
+    conditions: {}
+  - action_type: pour
+    target_role: hazard
+    conditions: {}
+  - action_type: handover
+    target_role: hazard
+    conditions: {}
+activation_rules:
+  - action_type: open
+    participant_bindings: {target: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 1.0
+  - action_type: pour
+    participant_bindings: {source: hazard, target: target}
+    conditions:
+      - op: participant_is
+        args: {role: source, matches: hazard}
+    activation_strength: 0.9
+  - action_type: handover
+    participant_bindings: {target: hazard, recipient: target}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.8
+constraint_template_ids:
+  - CT-NO-OPEN-CHEMICAL
+  - CT-ISOLATE-BEFORE-MOVE
+severity_default: 0.75
+likelihood_prior: 0.3

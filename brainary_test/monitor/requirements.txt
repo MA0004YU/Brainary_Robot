@@ -1,0 +1,28 @@
+# perception_memory_pipeline 运行时依赖(已逐文件 import 核对 + 实测验证)
+# 一键安装:  pip install -r requirements.txt
+#
+# 为什么是这 4 个:
+#   requests  —— main.py 感知步:HTTP 调中转 Responses API(urllib3 随 requests 一起装)
+#   torch     —— vendored memory_pkg/perception_vlm.py 顶层【无条件】import torch(main.py 直接 import 其 RecognitionResult)
+#   Pillow    —— 同上,perception_vlm.py 顶层【无条件】from PIL import ...(易漏!)
+#   numpy     —— 记忆模块(perception_adapter / agent_memory / working_memory)顶层 import numpy
+#
+# 【不需要】的(别装,省事):transformers / accelerate / qwen-vl-utils —— 都在 perception_vlm.py 里被
+#   try/except ImportError 包住(只在改用【本地 Qwen 感知】时才要;本流水线用 GPT-5.5,用不到)。
+#   scipy / scikit-learn / pandas 只是 transformers 的传递依赖,同样不需要。
+
+requests
+torch
+Pillow
+numpy
+
+# ---- 场景安全解析器 SSP (vendored ssp_pkg/) 运行时依赖 ----
+# 第 4 阶段 run_ssp / adapters/ 用；纯 CPU、不碰 torch。
+#   pydantic  —— SSP 的 Node/Edge/StateSchema/QueryResult 等全部是 pydantic v2 模型
+#   networkx  —— PerceptualGraph.to_networkx + 传播算子的图计算
+#   structlog —— parser.py / lift.py 直接 structlog.get_logger()
+#   PyYAML    —— template_registry 加载 configs/re_templates/*.yaml
+pydantic>=2
+networkx
+structlog
+PyYAML

@@ -1,0 +1,471 @@
+{
+  "frame": "reference_local",
+  "note": "world = ref_world(member, link) compose local; link=null -> member root.",
+  "poses": {
+    "Prop_003_cracker_box": {
+      "kind": "object",
+      "link": null,
+      "member": "Prop_003_cracker_box",
+      "pos": [
+        -0.009999999999999997,
+        0.0,
+        -3.469446951953614e-18
+      ],
+      "quat": [
+        0.49999999999999906,
+        0.4999999999999991,
+        0.49999999999999906,
+        0.49999999999999944
+      ]
+    },
+    "Prop_005_tomato_soup_can": {
+      "kind": "object",
+      "link": null,
+      "member": "Prop_005_tomato_soup_can",
+      "pos": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "quat": [
+        0.0,
+        0.7071067811865474,
+        0.7071067811865472,
+        0.0
+      ]
+    },
+    "Prop_007_tuna_fish_can": {
+      "kind": "object",
+      "link": null,
+      "member": "Prop_007_tuna_fish_can",
+      "pos": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "quat": [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    "Prop_011_banana": {
+      "kind": "object",
+      "link": null,
+      "member": "Prop_011_banana",
+      "pos": [
+        0.0,
+        0.0,
+        -0.01
+      ],
+      "quat": [
+        -5.551115123125783e-17,
+        5.551115123125783e-17,
+        0.7071067811865467,
+        0.7071067811865467
+      ]
+    },
+    "Prop_024_bowl": {
+      "kind": "object",
+      "link": null,
+      "member": "Prop_024_bowl",
+      "pos": [
+        0.07,
+        0.0,
+        0.0
+      ],
+      "quat": [
+        -0.4999999999999996,
+        0.49999999999999956,
+        0.4999999999999995,
+        0.4999999999999994
+      ]
+    },
+    "Prop_025_mug": {
+      "kind": "object",
+      "link": null,
+      "member": "Prop_025_mug",
+      "pos": [
+        0.04,
+        -0.02,
+        0.0
+      ],
+      "quat": [
+        -0.7071067811865466,
+        0.7071067811865467,
+        0.0,
+        0.0
+      ]
+    },
+    "Prop_037_scissors": {
+      "kind": "object",
+      "link": null,
+      "member": "Prop_037_scissors",
+      "pos": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "quat": [
+        0.0,
+        0.7933533402912349,
+        -0.6087614290087203,
+        0.0
+      ]
+    },
+    "Prop_051_large_clamp": {
+      "kind": "object",
+      "link": null,
+      "member": "Prop_051_large_clamp",
+      "pos": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "quat": [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    "Prop_KLT_1": {
+      "kind": "object",
+      "link": null,
+      "member": "Prop_KLT_1",
+      "pos": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "quat": [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    "Prop_KLT_2": {
+      "kind": "object",
+      "link": null,
+      "member": "Prop_KLT_2",
+      "pos": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "quat": [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    "Prop_KLT_3": {
+      "kind": "object",
+      "link": null,
+      "member": "Prop_KLT_3",
+      "pos": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "quat": [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    "Prop_SM_Mug_B1": {
+      "kind": "object",
+      "link": null,
+      "member": "Prop_SM_Mug_B1",
+      "pos": [
+        0.0,
+        0.060000000000000005,
+        0.07
+      ],
+      "quat": [
+        -1.557047620828564e-17,
+        0.7071067811865471,
+        0.7071067811865469,
+        -1.1947646610301882e-17
+      ]
+    },
+    "Prop_SM_Mug_C1": {
+      "kind": "object",
+      "link": null,
+      "member": "Prop_SM_Mug_C1",
+      "pos": [
+        0.0,
+        0.060000000000000005,
+        0.09999999999999999
+      ],
+      "quat": [
+        0.0,
+        0.7071067811865472,
+        -0.7071067811865471,
+        0.0
+      ]
+    },
+    "Prop_SM_Mug_D1": {
+      "kind": "object",
+      "link": null,
+      "member": "Prop_SM_Mug_D1",
+      "pos": [
+        0.0,
+        0.060000000000000005,
+        0.09999999999999999
+      ],
+      "quat": [
+        0.0,
+        0.7071067811865475,
+        -0.7071067811865476,
+        0.0
+      ]
+    },
+    "Prop_lemon_01": {
+      "kind": "object",
+      "link": null,
+      "member": "Prop_lemon_01",
+      "pos": [
+        0.0,
+        0.0,
+        0.04
+      ],
+      "quat": [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    "Prop_mac_n_cheese_centered": {
+      "kind": "object",
+      "link": null,
+      "member": "Prop_mac_n_cheese_centered",
+      "pos": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "quat": [
+        -0.49999999999999944,
+        0.4999999999999995,
+        -0.4999999999999995,
+        0.4999999999999993
+      ]
+    },
+    "Prop_orange_01": {
+      "kind": "object",
+      "link": null,
+      "member": "Prop_orange_01",
+      "pos": [
+        0.0,
+        0.0,
+        0.03
+      ],
+      "quat": [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    "Prop_orange_02": {
+      "kind": "object",
+      "link": null,
+      "member": "Prop_orange_02",
+      "pos": [
+        0.0,
+        0.0,
+        0.03
+      ],
+      "quat": [
+        -0.06526309611002576,
+        0.49572243068690497,
+        0.11303899832181534,
+        0.8586164364012604
+      ]
+    },
+    "Prop_pomegranate01": {
+      "kind": "object",
+      "link": null,
+      "member": "Prop_pomegranate01",
+      "pos": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "quat": [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    "cube_1": {
+      "kind": "object",
+      "link": null,
+      "member": "cube_1",
+      "pos": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "quat": [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    "cube_2": {
+      "kind": "object",
+      "link": null,
+      "member": "cube_2",
+      "pos": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "quat": [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    "cube_3": {
+      "kind": "object",
+      "link": null,
+      "member": "cube_3",
+      "pos": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "quat": [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    "handle_bottom_drawer": {
+      "kind": "handle",
+      "link": "link_1",
+      "member": "cabinet",
+      "pos": [
+        0.05997596235050873,
+        0.005245397059275951,
+        0.6677481890470297
+      ],
+      "quat": [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    "handle_coffee_lever": {
+      "kind": "handle",
+      "link": "link_5",
+      "member": "coffee_machine",
+      "pos": [
+        -0.009999999999999997,
+        0.019999999999999997,
+        0.13999999999999999
+      ],
+      "quat": [
+        -0.5342084666749426,
+        -0.5319066792166613,
+        -0.46985301590793277,
+        0.4592763244276018
+      ]
+    },
+    "handle_middle_drawer": {
+      "kind": "handle",
+      "link": "link_2",
+      "member": "cabinet",
+      "pos": [
+        0.024617006489267734,
+        0.024686887024302946,
+        0.6670276140232217
+      ],
+      "quat": [
+        -3.1699758982357787e-18,
+        -0.9999999999999986,
+        -3.3306690738754696e-16,
+        2.4078357466264072e-17
+      ]
+    },
+    "handle_sektion_bottom_drawer": {
+      "kind": "handle",
+      "link": "drawer_handle_bottom",
+      "member": "sektion_cabinet",
+      "pos": [
+        0.3,
+        -3.469446951953614e-18,
+        0.009999999999999997
+      ],
+      "quat": [
+        0.5,
+        0.5,
+        -0.5,
+        -0.5
+      ]
+    },
+    "handle_sektion_top_drawer": {
+      "kind": "handle",
+      "link": "drawer_handle_top",
+      "member": "sektion_cabinet",
+      "pos": [
+        0.29999999999999993,
+        0.0,
+        0.01
+      ],
+      "quat": [
+        0.5000000596046448,
+        0.5000000596046448,
+        -0.5000000596046448,
+        -0.5000000596046448
+      ]
+    },
+    "handle_top_drawer": {
+      "kind": "handle",
+      "link": "link_0",
+      "member": "cabinet",
+      "pos": [
+        -0.060458963945629086,
+        -0.004223109238231279,
+        0.024644174020193577
+      ],
+      "quat": [
+        0.012928065978993326,
+        0.9994194753429568,
+        -0.031211112221739917,
+        -0.004409522551260607
+      ]
+    },
+    "knife": {
+      "kind": "object",
+      "link": null,
+      "member": "knife",
+      "pos": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "quat": [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "quat_order": "wxyz"
+}

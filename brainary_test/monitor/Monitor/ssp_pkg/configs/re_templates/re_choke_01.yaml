@@ -1,0 +1,86 @@
+# RE-CHOKE-01: choking / ingestion (new, ADR-021). Terminal harm: a small ingestible
+# (small part / button battery / pill) reaches a child. Grounding (proposal §5):
+# hazard.subtype=small_ingestible (size observable), target.vulnerability=child,
+# transfer/reachable. NOTE: depends on "swallowable size" attribute the perception
+# stack may not reliably give (CLAUDE.md §9.5 #31); source is only 0.9% of DESPITE —
+# may be downgraded to v0.2.1 if not labelable. Missing grounding → uncertainty flag.
+id: RE-CHOKE-01
+name: choking_ingestion
+event_role: terminal_harm
+hazard_source:
+  entity_type: physical_object
+  subtypes: [small_ingestible]
+  required_attributes: {}
+vulnerable_targets:
+  - entity_type: human
+    subtypes: []
+    required_attributes: {}
+  - entity_type: animal
+    subtypes: []
+    required_attributes: {}
+instantiation_conditions:
+  - op: entity_type_in
+    args: {field: hazard.subtype, values: [small_ingestible]}
+  - op: entity_type_in
+    args: {field: target.type, values: [human, animal]}
+  - op: relation_exists
+    args: {relation: [reachable, near, holds], src: hazard, dst: target}
+activation_conditions:
+  - "reachable(target, hazard)"
+  - "vulnerability(target) in [child]"
+propagation_edges:
+  - from_role: hazard
+    to_role: target
+    relation: could_choke
+    base_weight: 0.7
+mitigation_relations:
+  - relation: isolated_by
+    suppressor_filter:
+      entity_type: physical_object
+      subtypes: [container]
+      required_attributes: {containment: locked}
+    mitigation_mode: hard
+    residual_multiplier: 0.05
+  - relation: guarded_by
+    suppressor_filter:
+      entity_type: human
+      subtypes: []
+      required_attributes: {attention: aware}
+    mitigation_mode: soft
+    residual_multiplier: 0.30
+action_activators:
+  - action_type: handover
+    target_role: hazard
+    conditions: {}
+  - action_type: place_near
+    target_role: hazard
+    conditions: {}
+  - action_type: pick
+    target_role: hazard
+    conditions: {}
+activation_rules:
+  - action_type: handover
+    participant_bindings: {target: hazard, recipient: target}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+      - op: entity_attr_in
+        args: {entity: recipient, attr: vulnerability, values: [child]}
+    activation_strength: 1.0
+  - action_type: place
+    participant_bindings: {target: hazard, destination: target}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.7
+  - action_type: pick
+    participant_bindings: {target: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.5
+constraint_template_ids:
+  - CT-NO-HANDOVER-CHILD
+  - CT-KEEP-SMALL-PARTS-LOCKED
+severity_default: 0.8
+likelihood_prior: 0.2

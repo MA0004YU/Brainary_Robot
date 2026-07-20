@@ -1,0 +1,226 @@
+{
+  "active_manifest": "scene_v1_latest.json",
+  "active_usd": "scene_v1_latest.usd",
+  "consumers": [
+    "skill_runtime",
+    "teleop_collection",
+    "pi05_training",
+    "perception_foundationpose"
+  ],
+  "control_mode": "joint",
+  "note": "Saved by brainary_test_ui.",
+  "objects": [
+    "cube_1",
+    "cube_2",
+    "cube_3",
+    "knife",
+    "cabinet",
+    "microwave",
+    "coffee_machine"
+  ],
+  "schema_version": "franka-scene-v1",
+  "sensors": {
+    "foundationpose_d435_rgbd": {
+      "consumer": "foundationpose",
+      "consumer_modules": [
+        "skill_runtime",
+        "teleop_collection",
+        "pi05_training",
+        "perception_foundationpose"
+      ],
+      "depth": true,
+      "enabled": false,
+      "frame_id": "foundationpose_d435_rgbd",
+      "image_keys": [
+        "images.wrist_depth"
+      ],
+      "intrinsics": {
+        "cx": 320.0,
+        "cy": 240.0,
+        "fx": 610.8327368169888,
+        "fy": 610.8327368169888,
+        "height": 480,
+        "width": 640
+      },
+      "libero_compatible": false,
+      "offset": {
+        "convention": "opengl",
+        "pos": [
+          0.04414,
+          -0.01518,
+          0.00429
+        ],
+        "rot_wxyz": [
+          0.06663008636930542,
+          0.7085909185115734,
+          0.7012009089322673,
+          0.04215005463704373
+        ]
+      },
+      "parent": "panda_hand",
+      "pose_is_approximate": false,
+      "prim_path": "{ENV_REGEX_NS}/Robot/panda_hand/foundationpose_d435_rgbd",
+      "resolution": [
+        640,
+        480
+      ],
+      "rgb": true,
+      "role": "depth",
+      "static": false,
+      "type": "rgbd",
+      "visible_body": false
+    },
+    "vla_front_static": {
+      "consumer": "vla_pi05",
+      "consumer_modules": [
+        "skill_runtime",
+        "teleop_collection",
+        "pi05_training",
+        "perception_foundationpose"
+      ],
+      "depth": false,
+      "enabled": false,
+      "frame_id": "vla_front_static",
+      "image_keys": [
+        "images.front_rgb",
+        "images.image"
+      ],
+      "intrinsics": {
+        "cx": 128.0,
+        "cy": 128.0,
+        "fx": 293.19971367215464,
+        "fy": 293.19971367215464,
+        "height": 256,
+        "width": 256
+      },
+      "libero_compatible": false,
+      "offset": {
+        "convention": "opengl",
+        "pos": [
+          4.15,
+          1.95,
+          2.33
+        ],
+        "rot_wxyz": [
+          0.6106319713943114,
+          0.3570002244402875,
+          0.35173003094657396,
+          0.6131601916228772
+        ]
+      },
+      "parent": "env_root",
+      "pose_is_approximate": false,
+      "prim_path": "{ENV_REGEX_NS}/vla_front_static",
+      "resolution": [
+        256,
+        256
+      ],
+      "rgb": true,
+      "role": "image",
+      "static": true,
+      "type": "rgb",
+      "visible_body": false
+    },
+    "vla_left_static": {
+      "offset": {
+        "convention": "opengl",
+        "pos": [
+          2.180000066757202,
+          3.4599999618530273,
+          2.589999923706055
+        ],
+        "rot_wxyz": [
+          -0.002319245431091549,
+          0.0034217780184205293,
+          0.36773605020140776,
+          0.9299210247804214
+        ]
+      }
+    },
+    "vla_libero_eye_in_hand": {
+      "consumer": "vla_pi05",
+      "consumer_modules": [
+        "skill_runtime",
+        "teleop_collection",
+        "pi05_training",
+        "perception_foundationpose"
+      ],
+      "depth": false,
+      "enabled": false,
+      "frame_id": "vla_libero_eye_in_hand",
+      "image_keys": [
+        "images.wrist_rgb",
+        "images.eye_in_hand_rgb",
+        "images.robot0_eye_in_hand_rgb"
+      ],
+      "intrinsics": {
+        "cx": 64.0,
+        "cy": 64.0,
+        "fx": 83.40310188499166,
+        "fy": 83.40310188499166,
+        "height": 128,
+        "width": 128
+      },
+      "libero_compatible": true,
+      "offset": {
+        "convention": "opengl",
+        "pos": [
+          0.04414,
+          -0.01518,
+          0.00429
+        ],
+        "rot_wxyz": [
+          0.06663008636930542,
+          0.7085909185115734,
+          0.7012009089322673,
+          0.04215005463704373
+        ]
+      },
+      "parent": "panda_hand",
+      "pose_is_approximate": false,
+      "prim_path": "{ENV_REGEX_NS}/Robot/panda_hand/vla_libero_eye_in_hand",
+      "resolution": [
+        128,
+        128
+      ],
+      "rgb": true,
+      "role": "wrist_image",
+      "static": false,
+      "type": "rgb",
+      "visible_body": false
+    },
+    "vla_right_static": {
+      "offset": {
+        "convention": "opengl",
+        "pos": [
+          1.8799999427795409,
+          -0.5299999995529653,
+          2.3299999237060547
+        ],
+        "rot_wxyz": [
+          0.8653517961502075,
+          0.5011478662490845,
+          -0.00372699904255569,
+          0.0017879995284602046
+        ]
+      }
+    },
+    "vla_top_static": {
+      "offset": {
+        "convention": "opengl",
+        "pos": [
+          2.0199998855590824,
+          1.9099999904632567,
+          3.6999999999999975
+        ],
+        "rot_wxyz": [
+          0.7071067811865478,
+          0.0,
+          0.0,
+          -0.7071067811865475
+        ]
+      }
+    }
+  },
+  "task_id": "Isaac-Stack-Cube-Franka-JointPolicy-v0"
+}

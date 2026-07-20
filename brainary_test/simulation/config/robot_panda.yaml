@@ -1,0 +1,26 @@
+# ======================================================================
+# 🤖 Panda 机械臂仿真物理本体配置文件
+# ======================================================================
+robot_config:
+  urdf_path: "assets/robots/panda/panda.urdf"
+
+  # [Kinematics: 运动学参数]
+  home_qpos: [0.0, -0.785, 0.0, -2.356, 0.0, 1.571, 0.785, 0.04, 0.04]
+  tcp_offset_z: 0.1034               # 夹爪法兰到指尖 TCP 的长度
+  approach_clearance: 0.005          # 悬停与下探的安全冗余间隙
+  gripper_max_width: 0.08            # 夹爪最大张开宽度 (80mm)
+
+  # [Dynamics: 动力学参数]
+  arm_stiffness: 4000.0              # 大臂柔顺度刚性
+  arm_damping: 400.0
+  gripper_stiffness: 2000.0          # 夹爪挤压刚度 (与联想测算严格绑定)
+  gripper_damping: 50.0
+  gripper_force_limit: 150.0         # 液压极限
+
+  # 🚀 补全：死锁与动力学超载检测探针所需的参数
+  max_joint_torque: 200.0            # 关节电机最大保护扭矩 (Nm)
+  tracking_error_threshold: 0.1      # 最大允许关节追踪误差 (约 5.7 度)
+
+  # [Safety & Task Limits: 安全与任务阈值]
+  penetration_tolerance_m: 0.002     # 防矩阵爆炸的穿模容忍度 (单侧1mm)
+  lift_success_threshold_m: 0.035    # 相对抬升判定阈值 (支持3D堆叠)

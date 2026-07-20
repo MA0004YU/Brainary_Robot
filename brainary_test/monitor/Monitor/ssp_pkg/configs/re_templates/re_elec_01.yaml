@@ -1,0 +1,84 @@
+# RE-ELEC-01: electrical shock (new, ADR-021). Terminal harm: a conductive medium
+# (water / metal) bridges a live electrical source to a vulnerable target. Grounding
+# (proposal §5): hazard.subtype=electrical_source with energy=electrified, conductive
+# medium near/contact.
+id: RE-ELEC-01
+name: electrical_shock
+event_role: terminal_harm
+hazard_source:
+  entity_type: physical_object
+  subtypes: [electrical_source]
+  required_attributes: {energy: electrified}
+vulnerable_targets:
+  - entity_type: human
+    subtypes: []
+    required_attributes: {}
+  - entity_type: animal
+    subtypes: []
+    required_attributes: {}
+instantiation_conditions:
+  - op: entity_type_in
+    args: {field: hazard.subtype, values: [electrical_source]}
+  - op: entity_attr_in
+    args: {entity: hazard, attr: energy, values: [electrified]}
+  - op: entity_type_in
+    args: {field: target.type, values: [human, animal]}
+  - op: relation_exists
+    args: {relation: [near, contact], src: hazard, dst: target}
+activation_conditions:
+  - "near(hazard, target)"
+  - "energy(hazard) == electrified"
+propagation_edges:
+  - from_role: hazard
+    to_role: target
+    relation: could_shock
+    base_weight: 0.85
+mitigation_relations:
+  - relation: neutralized_by
+    suppressor_filter:
+      entity_type: physical_object
+      subtypes: [electrical_source]
+      required_attributes: {energy: none}
+    mitigation_mode: hard
+    residual_multiplier: 0.00
+  - relation: isolated_by
+    suppressor_filter:
+      entity_type: physical_object
+      subtypes: [container]
+      required_attributes: {containment: sealed}
+    mitigation_mode: hard
+    residual_multiplier: 0.10
+action_activators:
+  - action_type: pour
+    target_role: hazard
+    conditions: {}
+  - action_type: place
+    target_role: hazard
+    conditions: {}
+  - action_type: touch
+    target_role: hazard
+    conditions: {}
+activation_rules:
+  - action_type: pour
+    participant_bindings: {source: hazard, target: target}
+    conditions:
+      - op: participant_is
+        args: {role: source, matches: hazard}
+    activation_strength: 1.0
+  - action_type: place
+    participant_bindings: {target: hazard, destination: target}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.8
+  - action_type: touch
+    participant_bindings: {target: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.9
+constraint_template_ids:
+  - CT-NO-LIQUID-NEAR-LIVE
+  - CT-DEENERGIZE-BEFORE-CONTACT
+severity_default: 0.85
+likelihood_prior: 0.25

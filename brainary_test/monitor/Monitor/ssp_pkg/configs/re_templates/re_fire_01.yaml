@@ -1,0 +1,83 @@
+# RE-FIRE-01: fire combustion (new, intermediate, ADR-021). Intermediate outcome:
+# a heat source / open flame ignites a flammable material and the fire spreads;
+# downstream it can burn a person (RE-BURN-01). Distinct from BURN: FIRE's target is
+# the flammable, BURN's target is the vulnerable being. Reuses could_ignite (ADR-021).
+# Grounding (proposal §5): heat source (energy=hot), flammable target, near/contact.
+id: RE-FIRE-01
+name: fire_combustion
+event_role: intermediate_outcome
+downstream_events: [burn_injury]
+hazard_source:
+  entity_type: physical_object
+  subtypes: [hot_object]
+  required_attributes: {energy: hot}
+vulnerable_targets:
+  - entity_type: physical_object
+    subtypes: [flammable]
+    required_attributes: {}
+instantiation_conditions:
+  - op: entity_type_in
+    args: {field: hazard.subtype, values: [hot_object]}
+  - op: entity_attr_in
+    args: {entity: hazard, attr: energy, values: [hot]}
+  - op: entity_type_in
+    args: {field: target.subtype, values: [flammable]}
+  - op: relation_exists
+    args: {relation: [near, contact], src: hazard, dst: target}
+activation_conditions:
+  - "near(hazard, target)"
+  - "energy(hazard) == hot"
+propagation_edges:
+  - from_role: hazard
+    to_role: target
+    relation: could_ignite
+    base_weight: 0.7
+mitigation_relations:
+  - relation: neutralized_by
+    suppressor_filter:
+      entity_type: physical_object
+      subtypes: []
+      required_attributes: {energy: cold}
+    mitigation_mode: hard
+    residual_multiplier: 0.00
+  - relation: isolated_by
+    suppressor_filter:
+      entity_type: physical_object
+      subtypes: [container]
+      required_attributes: {containment: sealed}
+    mitigation_mode: hard
+    residual_multiplier: 0.15
+action_activators:
+  - action_type: place_near
+    target_role: hazard
+    conditions: {}
+  - action_type: pick
+    target_role: hazard
+    conditions: {}
+  - action_type: push
+    target_role: hazard
+    conditions: {}
+activation_rules:
+  - action_type: place
+    participant_bindings: {target: hazard, destination: target}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 1.0
+  - action_type: pick
+    participant_bindings: {target: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.7
+  - action_type: push
+    participant_bindings: {target: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.8
+constraint_template_ids:
+  - CT-NO-HEAT-NEAR-FLAMMABLE
+  - CT-CLEAR-FLAMMABLE-PATH
+severity_default: 0.6
+likelihood_prior: 0.3

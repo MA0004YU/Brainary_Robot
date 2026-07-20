@@ -1,0 +1,69 @@
+id: RE-TRANS-01
+name: dangerous_object_transfer
+event_role: terminal_harm
+hazard_source:
+  entity_type: physical_object
+  subtypes: [sharp_object, hot_object, chemical_container]
+  required_attributes: {}
+vulnerable_targets:
+  - entity_type: human
+    subtypes: []
+    required_attributes: {}
+instantiation_conditions:
+  - op: entity_type_in
+    args: {field: hazard.subtype, values: [sharp_object, hot_object, chemical_container]}
+  - op: entity_type_in
+    args: {field: target.type, values: [human]}
+  - op: entity_attr_in
+    args: {entity: target, attr: vulnerability, values: [child, elderly, impaired]}
+activation_conditions:
+  - "holds(agent, hazard)"
+  - "reachable(target, agent)"
+  - "vulnerability(target) in [child, elderly, impaired]"
+propagation_edges:
+  - from_role: hazard
+    to_role: target
+    relation: could_transfer
+    base_weight: 0.8
+mitigation_relations:
+  - relation: guarded_by
+    suppressor_filter:
+      entity_type: human
+      subtypes: []
+      required_attributes: {attention: aware}
+    mitigation_mode: soft
+    residual_multiplier: 0.30
+  - relation: neutralized_by
+    suppressor_filter:
+      entity_type: physical_object
+      subtypes: [container]
+      required_attributes: {containment: sealed}
+    mitigation_mode: hard
+    residual_multiplier: 0.10
+action_activators:
+  - action_type: handover
+    target_role: hazard
+    conditions: {recipient_vulnerability: "child"}
+  - action_type: place_near
+    target_role: hazard
+    conditions: {}
+activation_rules:
+  - action_type: handover
+    participant_bindings: {target: hazard, recipient: target}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+      - op: entity_attr_in
+        args: {entity: recipient, attr: vulnerability, values: [child, elderly, impaired]}
+    activation_strength: 1.0
+  - action_type: place
+    participant_bindings: {target: hazard, destination: target}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.6
+constraint_template_ids:
+  - CT-NO-HANDOVER-CHILD
+  - CT-REQUIRE-SAFE-PACKAGING
+severity_default: 0.75
+likelihood_prior: 0.4

@@ -1,0 +1,43 @@
+# simulation/config/global_config.yaml
+
+# 1. LLM 调用配置
+llm_config:
+  model_name: "gpt-4-turbo"
+  api_key: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  temperature_plan: 0.1
+  temperature_reflection: 0.3
+
+# 2. Franka(Panda) 硬件与控制约束
+robot_config:
+  urdf_path: "assets/robots/panda/panda.urdf"
+  max_joint_torque: 87.0            # Franka 关节1-4真实电机峰值扭矩 (Nm)
+  tracking_error_threshold: 0.08    # 死锁容忍弧度误差 (~4.5度)
+  default_speed: 0.1
+
+# 3. 真实物理相机内参
+camera_config:
+  intrinsics:
+    fx: 615.2
+    fy: 615.2
+    cx: 320.0
+    cy: 240.0
+  # 外参已被彻底解耦，由测试沙盒的 LookAt 引擎全自动动态生成
+
+# 4. SAPIEN 底层引擎高频步进与消穿模控制
+simulator_config:
+  time_step: 0.002                  # 真实物理步长 500Hz
+  settling_steps: 100               # 真实耗时 0.2s 消除网格穿模
+  settling_linear_damping: 10.0
+  settling_angular_damping: 10.0
+  velocity_gate_epsilon: 0.005      # 速度门控阈值 (m/s)
+
+# 5. 真实物理学红线探针阈值
+detector_thresholds:
+  max_allowed_angle: 15.0           # 倾倒绝对红线 (度)
+  unplanned_collision_force: 5.0    # 计划外允许接触力红线 (N)
+
+# 6. 视觉大模型双核权重文件夹路径
+weights_config:
+  fp_weights_root: "weights/fp_weights"
+  fp_refiner_dir: "2023-10-28-18-33-37"
+  fp_scorer_dir: "2024-01-11-20-02-45"

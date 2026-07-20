@@ -1,0 +1,5 @@
+# Qwen2.5-VL server deps. torch is INHERITED from the base conda env (--system-site-packages),
+# NOT reinstalled here -- reuses the working CUDA torch and avoids a multi-GB duplicate.
+transformers>=4.49
+accelerate>=0.34
+qwen-vl-utils>=0.0.8

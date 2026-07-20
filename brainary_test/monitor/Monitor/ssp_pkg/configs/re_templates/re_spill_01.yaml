@@ -1,0 +1,89 @@
+id: RE-SPILL-01
+name: spill_damage
+event_role: intermediate_outcome
+downstream_events: [fall_injury, electrical_shock]
+hazard_source:
+  entity_type: physical_object
+  subtypes: [container, hot_object]
+  required_attributes: {containment: open}
+vulnerable_targets:
+  - entity_type: physical_object
+    subtypes: [electronic, food_item]
+    required_attributes: {}
+  - entity_type: human
+    subtypes: []
+    required_attributes: {}
+instantiation_conditions:
+  - op: entity_type_in
+    args: {field: hazard.subtype, values: [container, hot_object]}
+  - op: entity_attr_in
+    args: {entity: hazard, attr: containment, values: [open]}
+  - op: relation_exists
+    args: {relation: [near, supports], src: hazard, dst: target}
+activation_conditions:
+  - "contains(hazard, liquid)"
+  - "containment(hazard) == open"
+  - "near(hazard, target)"
+propagation_edges:
+  - from_role: hazard
+    to_role: target
+    relation: could_spill_to
+    base_weight: 0.6
+mitigation_relations:
+  - relation: isolated_by
+    suppressor_filter:
+      entity_type: physical_object
+      subtypes: [container]
+      required_attributes: {containment: sealed}
+    mitigation_mode: hard
+    residual_multiplier: 0.05
+  - relation: neutralized_by
+    suppressor_filter:
+      entity_type: physical_object
+      subtypes: [container]
+      required_attributes: {orientation: upright}
+    mitigation_mode: hard
+    residual_multiplier: 0.50
+action_activators:
+  - action_type: pick
+    target_role: hazard
+    conditions: {}
+  - action_type: push
+    target_role: hazard
+    conditions: {}
+  - action_type: pour
+    target_role: hazard
+    conditions: {}
+  - action_type: bump
+    target_role: hazard
+    conditions: {}
+activation_rules:
+  - action_type: pick
+    participant_bindings: {target: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.9
+  - action_type: push
+    participant_bindings: {target: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.8
+  - action_type: bump
+    participant_bindings: {target: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.9
+  - action_type: pour
+    participant_bindings: {source: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: source, matches: hazard}
+    activation_strength: 1.0
+constraint_template_ids:
+  - CT-UPRIGHT-GRASP
+  - CT-CLEAR-PATH-LIQUID
+severity_default: 0.6
+likelihood_prior: 0.4

@@ -1,0 +1,77 @@
+# RE-BIO-01: bio/food contamination (CONTAMINATION split, ADR-021). Terminal harm:
+# raw/animal/allergen contamination source reaches a food item / human. Grounding
+# (proposal §5): food_item present, contamination-source contact relation.
+# NOTE: depends on "food raw/cooked, allergen" attributes the perception stack may not
+# reliably give — user decision "assume perceivable"; missing grounding must raise an
+# uncertainty flag, not be hard-labelled (CLAUDE.md §9.5 #31).
+id: RE-BIO-01
+name: bio_food_contamination
+event_role: terminal_harm
+hazard_source:
+  entity_type: substance
+  subtypes: []
+  required_attributes: {}
+vulnerable_targets:
+  - entity_type: physical_object
+    subtypes: [food_item]
+    required_attributes: {}
+  - entity_type: human
+    subtypes: []
+    required_attributes: {}
+instantiation_conditions:
+  - op: entity_type_in
+    args: {field: hazard.type, values: [substance]}
+  - op: entity_type_in
+    args: {field: target.type, values: [physical_object, human]}
+  - op: relation_exists
+    args: {relation: [near, contact, contains], src: hazard, dst: target}
+activation_conditions:
+  - "contact(hazard, target)"
+  - "NOT isolated_by(hazard, any)"
+propagation_edges:
+  - from_role: hazard
+    to_role: target
+    relation: could_contaminate
+    base_weight: 0.6
+mitigation_relations:
+  - relation: isolated_by
+    suppressor_filter:
+      entity_type: physical_object
+      subtypes: [container]
+      required_attributes: {containment: sealed}
+    mitigation_mode: hard
+    residual_multiplier: 0.05
+action_activators:
+  - action_type: place
+    target_role: hazard
+    conditions: {}
+  - action_type: pour
+    target_role: hazard
+    conditions: {}
+  - action_type: handover
+    target_role: hazard
+    conditions: {}
+activation_rules:
+  - action_type: place
+    participant_bindings: {target: hazard, destination: target}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.9
+  - action_type: pour
+    participant_bindings: {source: hazard, target: target}
+    conditions:
+      - op: participant_is
+        args: {role: source, matches: hazard}
+    activation_strength: 0.8
+  - action_type: handover
+    participant_bindings: {target: hazard, recipient: target}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.7
+constraint_template_ids:
+  - CT-SEPARATE-RAW-COOKED
+  - CT-ISOLATE-BEFORE-MOVE
+severity_default: 0.5
+likelihood_prior: 0.3

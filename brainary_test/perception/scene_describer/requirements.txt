@@ -1,0 +1,3 @@
+# VLM describe server deps (isolated .venv_vlm; openai SDK targets the Responses API).
+openai>=1.40
+httpx>=0.27

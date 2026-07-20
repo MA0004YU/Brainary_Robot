@@ -1,0 +1,212 @@
+{
+  "scene_summary": "一个木质桌面场景中，Franka Panda 机械臂位于桌面中央偏后方，夹爪张开且未接触物体。桌面上摆放着多个托盘、两个杯子、一把剪刀、一个红色零食盒和一个黄色球体。",
+  "objects": [
+    {
+      "name": "franka_panda",
+      "category": "robot",
+      "appearance": "白色机械臂，带黑色夹爪指尖，安装在桌面中央区域。",
+      "location": "位于桌面中央偏后方，夹爪朝向桌面前方的物体区域。",
+      "state": "机械臂静止；根据数值状态，末端位姿在桌面上方，未与其他物体接触。"
+    },
+    {
+      "name": "gripper",
+      "category": "robot_gripper",
+      "appearance": "白色夹爪，两个黑色指尖可见。",
+      "location": "连接在机械臂末端，位于桌面中央上方；腕部视角中夹爪下缘位于画面底部。",
+      "state": "夹爪张开，宽度约为0.080米；contact_forces为空，未抓取物体。"
+    },
+    {
+      "name": "wooden_table",
+      "category": "table",
+      "appearance": "深色木纹桌面，带高起的木质后挡板和右侧挡板。",
+      "location": "占据整个场景下方，是所有桌面物体的支撑面。",
+      "state": "固定不动，表面承载多个物体。"
+    },
+    {
+      "name": "green_tray",
+      "category": "tray",
+      "appearance": "绿色半透明矩形浅托盘，内部为空。",
+      "location": "位于桌面前左侧。",
+      "state": "平放在桌面上，未被抓取。"
+    },
+    {
+      "name": "yellow_mug",
+      "category": "mug",
+      "appearance": "黄色马克杯，白色杯口和内壁，带把手。",
+      "location": "位于桌面前部偏中左，靠近剪刀左侧。",
+      "state": "直立放置，未被抓取，杯内未见明显内容物。"
+    },
+    {
+      "name": "scissors",
+      "category": "scissors",
+      "appearance": "灰色金属剪刀，黄色手柄环，刀刃闭合或接近闭合。",
+      "location": "位于桌面前部中央区域；在腕部视角中处于画面中央。",
+      "state": "平放在桌面上，未被抓取。"
+    },
+    {
+      "name": "pink_tray",
+      "category": "tray",
+      "appearance": "粉紫色矩形浅托盘，内部为空。",
+      "location": "位于机械臂前方偏右、桌面中后部。",
+      "state": "平放在桌面上，未被抓取。"
+    },
+    {
+      "name": "blue_tray",
+      "category": "tray",
+      "appearance": "蓝紫色矩形浅托盘，内部为空。",
+      "location": "位于桌面前右侧。",
+      "state": "平放在桌面上，未被抓取。"
+    },
+    {
+      "name": "red_snack_box",
+      "category": "box",
+      "appearance": "红色长方体包装盒，表面有黄色图案和白色文字。",
+      "location": "位于桌面右后区域，靠近蓝色马克杯和黄色球体。",
+      "state": "横向躺放或轻微倾斜在桌面上，未被抓取。"
+    },
+    {
+      "name": "yellow_ball",
+      "category": "sphere",
+      "appearance": "小型黄色球体。",
+      "location": "位于红色零食盒左前侧、蓝色马克杯左侧附近。",
+      "state": "静止放在桌面上，未被抓取。"
+    },
+    {
+      "name": "blue_mug",
+      "category": "mug",
+      "appearance": "蓝色马克杯，带把手。",
+      "location": "位于桌面右后区域，靠近红色零食盒右侧。",
+      "state": "直立放置，未被抓取。"
+    }
+  ],
+  "relations": [
+    {
+      "subject": "green_tray",
+      "predicate": "on",
+      "object": "wooden_table",
+      "description": "绿色托盘平放在木质桌面前左侧。"
+    },
+    {
+      "subject": "yellow_mug",
+      "predicate": "on",
+      "object": "wooden_table",
+      "description": "黄色马克杯直立放在木质桌面前部偏中左。"
+    },
+    {
+      "subject": "scissors",
+      "predicate": "on",
+      "object": "wooden_table",
+      "description": "剪刀平放在木质桌面前部中央。"
+    },
+    {
+      "subject": "pink_tray",
+      "predicate": "on",
+      "object": "wooden_table",
+      "description": "粉紫色托盘平放在木质桌面中后部。"
+    },
+    {
+      "subject": "blue_tray",
+      "predicate": "on",
+      "object": "wooden_table",
+      "description": "蓝紫色托盘平放在木质桌面前右侧。"
+    },
+    {
+      "subject": "red_snack_box",
+      "predicate": "on",
+      "object": "wooden_table",
+      "description": "红色零食盒横向放在木质桌面右后区域。"
+    },
+    {
+      "subject": "yellow_ball",
+      "predicate": "on",
+      "object": "wooden_table",
+      "description": "黄色球体放在木质桌面上，靠近红色零食盒。"
+    },
+    {
+      "subject": "blue_mug",
+      "predicate": "on",
+      "object": "wooden_table",
+      "description": "蓝色马克杯直立放在木质桌面右后区域。"
+    },
+    {
+      "subject": "yellow_mug",
+      "predicate": "left_of",
+      "object": "scissors",
+      "description": "从前视图看，黄色马克杯位于剪刀左侧。"
+    },
+    {
+      "subject": "scissors",
+      "predicate": "right_of",
+      "object": "yellow_mug",
+      "description": "从前视图看，剪刀位于黄色马克杯右侧。"
+    },
+    {
+      "subject": "green_tray",
+      "predicate": "left_of",
+      "object": "yellow_mug",
+      "description": "绿色托盘位于黄色马克杯左侧。"
+    },
+    {
+      "subject": "blue_tray",
+      "predicate": "right_of",
+      "object": "scissors",
+      "description": "蓝紫色托盘位于剪刀右侧。"
+    },
+    {
+      "subject": "pink_tray",
+      "predicate": "behind",
+      "object": "scissors",
+      "description": "粉紫色托盘位于剪刀后方、更靠近机械臂和后挡板。"
+    },
+    {
+      "subject": "red_snack_box",
+      "predicate": "right_of",
+      "object": "pink_tray",
+      "description": "红色零食盒位于粉紫色托盘右侧。"
+    },
+    {
+      "subject": "blue_mug",
+      "predicate": "right_of",
+      "object": "red_snack_box",
+      "description": "蓝色马克杯位于红色零食盒右侧。"
+    },
+    {
+      "subject": "yellow_ball",
+      "predicate": "near",
+      "object": "red_snack_box",
+      "description": "黄色球体紧邻红色零食盒，位于其左前侧附近。"
+    },
+    {
+      "subject": "yellow_ball",
+      "predicate": "left_of",
+      "object": "blue_mug",
+      "description": "黄色球体位于蓝色马克杯左侧。"
+    },
+    {
+      "subject": "franka_panda",
+      "predicate": "behind",
+      "object": "scissors",
+      "description": "机械臂主体位于剪刀后方，末端在桌面上方。"
+    },
+    {
+      "subject": "gripper",
+      "predicate": "above",
+      "object": "wooden_table",
+      "description": "夹爪张开并悬在木质桌面上方。"
+    },
+    {
+      "subject": "gripper",
+      "predicate": "not_holding",
+      "object": "scissors",
+      "description": "夹爪未接触或抓取剪刀；数值状态中接触力为空且夹爪保持张开。"
+    },
+    {
+      "subject": "gripper",
+      "predicate": "not_holding",
+      "object": "any_table_object",
+      "description": "夹爪未抓取任何桌面物体；数值状态显示夹爪宽度约0.080米且没有接触力。"
+    }
+  ],
+  "model": "gpt-5.5",
+  "perception_backend": "gpt (chatgpt/scene_describer:5599)"
+}

@@ -1,0 +1,41 @@
+# ===== Brainary .gitignore =====
+# 目标:上传全部模块【代码】+ 样例静态数据 + 文档;排除 GB 级权重/第三方库/交付zip/venv/运行输出。
+
+# --- 运行输出(每次跑生成,不进库)---
+output/
+**/memory_store/
+**/*.log
+
+# --- Python 缓存/虚拟环境 ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.venv*/
+venv*/
+**/.venv_vlm/
+**/.venv_openpi/
+
+# --- 备份档:只排除大 zip;_deliveries 下的说明/小解包件保留 ---
+_deliveries/**/*.zip
+_deliveries/**/_working_offline_pipeline/**/output/
+_deliveries/**/__pycache__/
+
+# --- Simulation:排除 GB 级第三方库/权重/二进制资产(代码保留;资产在归档 zip 里)---
+simulation/weights/
+simulation/src/perception/third_party/
+simulation/assets/
+simulation/inputs/
+simulation/**/*.pth
+simulation/**/*.ckpt
+simulation/**/*.onnx
+
+# --- 大模型权重/数据集通配 ---
+*.pth
+*.ckpt
+*.safetensors
+*.pt
+!sample_data/**            # 样例静态数据(小,必须保留)
+
+# --- 系统杂项 ---
+.DS_Store
