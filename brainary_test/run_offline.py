@@ -70,7 +70,7 @@ def main() -> int:
 
     ts = time.strftime("%Y%m%d_%H%M%S")
     run_dir = _BRAINARY / "output" / ts
-    dirs = {k: run_dir / k for k in ("sim", "perception", "memory", "planning", "monitor")}
+    dirs = {k: run_dir / k for k in ("sim", "perception", "memory", "planning", "project_management", "monitor")}
     for d in dirs.values():
         d.mkdir(parents=True, exist_ok=True)
     print(f"[offline] 本次运行输出目录: {run_dir}", flush=True)
@@ -80,9 +80,16 @@ def main() -> int:
 
     perception = rb.stage_perception(args.perception, dirs["perception"], None, state, view_files, args.gpt_addr)
     planning_input = rb.stage_memory(dirs["memory"], perception, task)
+    planning_input = rb.stage_ssp(dirs["monitor"], dirs["memory"] / "memory_snapshot.json",
+                                  dirs["memory"] / "planning_input.json", planning_input)
     plan = rb.stage_planning(dirs["planning"], planning_input, task)
+    # PM:离线无机器人 -> sim=None => dry_run(只做别名解析+调度)
+    pm = rb.stage_project_management(dirs["project_management"], dirs["planning"] / "planned_actions.json",
+                                     dirs["memory"] / "planning_input.json", sim=None)
+    pm_actions = dirs["project_management"] / "pm_planned_actions.json"
+    actions_for_monitor = pm_actions if pm_actions.exists() else dirs["planning"] / "planned_actions.json"
     safety = rb.stage_monitor(dirs["monitor"], dirs["memory"] / "memory_snapshot.json",
-                              dirs["planning"] / "planned_actions.json", rb._LLM_MODEL)
+                              actions_for_monitor, rb._LLM_MODEL)
 
     summary = {"timestamp": ts, "mode": "offline (no-isaac)", "task": task,
                "sim_data": str(args.sim_data),
@@ -90,6 +97,8 @@ def main() -> int:
                "num_objects": len(perception.get("objects", [])),
                "planning_backend": plan.get("planning_backend"),
                "num_plan_steps": plan.get("num_steps"),
+               "pm": ({"mode": pm.get("mode"), "executed": len(pm.get("executed", [])),
+                       "failed": len(pm.get("failed", []))} if pm else None),
                "safety": safety,
                "outputs": {k: str(v) for k, v in dirs.items()}}
     (run_dir / "run_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")

@@ -1,0 +1,74 @@
+id: RE-FRAG-01
+name: fragile_breakage
+event_role: intermediate_outcome
+downstream_events: [cut_injury]
+hazard_source:
+  entity_type: physical_object
+  subtypes: [fragile_object]
+  required_attributes: {}
+vulnerable_targets:
+  - entity_type: physical_object
+    subtypes: [fragile_object]
+    required_attributes: {}
+instantiation_conditions:
+  - op: entity_type_in
+    args: {field: hazard.subtype, values: [fragile_object]}
+  - op: relation_exists
+    args: {relation: [near, supports], src: hazard, dst: hazard}
+activation_conditions:
+  - "near(robot, hazard)"
+  - "stability(hazard) in [unstable, tipping]"
+propagation_edges:
+  - from_role: hazard
+    to_role: hazard
+    relation: could_fall_from
+    base_weight: 0.6
+mitigation_relations:
+  - relation: isolated_by
+    suppressor_filter:
+      entity_type: physical_object
+      subtypes: [container]
+      required_attributes: {}
+    mitigation_mode: hard
+    residual_multiplier: 0.20
+  - relation: neutralized_by
+    suppressor_filter:
+      entity_type: surface
+      subtypes: []
+      required_attributes: {}
+    mitigation_mode: hard
+    residual_multiplier: 0.60
+action_activators:
+  - action_type: pick
+    target_role: hazard
+    conditions: {}
+  - action_type: bump
+    target_role: hazard
+    conditions: {}
+  - action_type: push
+    target_role: hazard
+    conditions: {}
+activation_rules:
+  - action_type: pick
+    participant_bindings: {target: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.7
+  - action_type: bump
+    participant_bindings: {target: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 1.0
+  - action_type: push
+    participant_bindings: {target: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.8
+constraint_template_ids:
+  - CT-GENTLE-GRASP
+  - CT-CLEAR-PATH-FRAGILE
+severity_default: 0.5
+likelihood_prior: 0.4

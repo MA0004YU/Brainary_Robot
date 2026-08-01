@@ -3,6 +3,7 @@ import cv2
 import random
 import numpy as np
 import sapien.core as sapien
+import sapien.physx
 import sapien.render
 from typing import Dict, Any, List
 
@@ -11,6 +12,24 @@ class SceneBuilder:
     def __init__(self, config: Dict[str, Any], physics_dictionary: Dict[str, Any]):
         self.config = config["simulator_config"]
         self.physics_dict = physics_dictionary
+
+        # =================================================================
+        # 🧯 PhysX 求解器稳定性 (必须在建 Scene 之前设置，属全局配置)
+        # 夹爪 stiffness=2000 硬挤压 68mm 积木时，默认求解设置会发散成 NaN ->
+        # scene.step() 直接段错误(整个进程静默挂掉，连 traceback 都没有)。
+        # 只需把速度迭代 1 -> 4 即可根治；不改动任何刚度参数，业务侧的
+        # predicted_force = squeeze_depth * k_gripper 模型完全不受影响。
+        # ⚠️ 切勿调高 solver_position_iterations：实测 50 会让机械臂第一步就炸开(漂移 2.3rad)，
+        #    (50, 1) 组合甚至在只有一条空机械臂的场景里就直接段错误。
+        # =================================================================
+        body_cfg = sapien.physx.get_body_config()
+        body_cfg.solver_position_iterations = self.config.get("solver_position_iterations", 10)
+        body_cfg.solver_velocity_iterations = self.config.get("solver_velocity_iterations", 4)
+        sapien.physx.set_body_config(body_cfg)
+
+        physx_scene_cfg = sapien.physx.get_scene_config()
+        physx_scene_cfg.enable_ccd = self.config.get("enable_ccd", False)
+        sapien.physx.set_scene_config(physx_scene_cfg)
 
         self.scene = sapien.Scene()
         self.scene.set_timestep(self.config["time_step"])

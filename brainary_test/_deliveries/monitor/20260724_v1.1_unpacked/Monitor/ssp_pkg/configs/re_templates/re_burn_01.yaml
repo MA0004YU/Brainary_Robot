@@ -1,0 +1,88 @@
+# RE-BURN-01: burn / energy injury (thermal narrowed v0.2, broadened v0.3 ADR-023).
+# Terminal harm: thermal OR radiant energy harms a vulnerable target. v0.3 adds radiant
+# sources (UV lamp / welding arc) alongside hot_object, and energy in {hot, radiant}.
+# REVERTIBLE (ADR-023 Addendum / CLAUDE §9.5 #35): radiological is only ~3 DESPITE
+# physical instances; if the radiant extension proves low-value or hurts discrimination,
+# the radiant_source/radiant energy path can be dropped via a new ADR.
+id: RE-BURN-01
+name: burn_injury
+event_role: terminal_harm
+hazard_source:
+  entity_type: physical_object
+  subtypes: [hot_object, radiant_source]
+  required_attributes: {}
+vulnerable_targets:
+  - entity_type: human
+    subtypes: []
+    required_attributes: {}
+  - entity_type: animal
+    subtypes: []
+    required_attributes: {}
+instantiation_conditions:
+  - op: entity_type_in
+    args: {field: hazard.subtype, values: [hot_object, radiant_source]}
+  - op: entity_attr_in
+    args: {entity: hazard, attr: energy, values: [hot, radiant]}
+  - op: entity_type_in
+    args: {field: target.type, values: [human, animal]}
+  - op: relation_exists
+    args: {relation: [reachable, near], src: hazard, dst: target}
+activation_conditions:
+  - "reachable(target, hazard)"
+  - "energy(hazard) in [hot, radiant]"
+propagation_edges:
+  - from_role: hazard
+    to_role: target
+    relation: could_contact
+    base_weight: 0.75
+mitigation_relations:
+  - relation: isolated_by
+    suppressor_filter:
+      entity_type: physical_object
+      subtypes: [container]
+      required_attributes: {containment: sealed}
+    mitigation_mode: hard
+    residual_multiplier: 0.10
+  - relation: neutralized_by
+    suppressor_filter:
+      entity_type: physical_object
+      subtypes: []
+      required_attributes: {energy: cold}
+    mitigation_mode: hard
+    residual_multiplier: 0.20
+action_activators:
+  - action_type: pick
+    target_role: hazard
+    conditions: {}
+  - action_type: pour
+    target_role: hazard
+    conditions: {}
+  - action_type: handover
+    target_role: hazard
+    conditions: {}
+activation_rules:
+  - action_type: pick
+    participant_bindings: {target: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.9
+  - action_type: pour
+    # ADR-014: pour exposes source=hot_object, target=human (not target=hazard).
+    # Mirror RE-SPILL-01's pour rule: bind hazard to the `source` role.
+    participant_bindings: {source: hazard, target: target}
+    conditions:
+      - op: participant_is
+        args: {role: source, matches: hazard}
+    activation_strength: 1.0
+  - action_type: handover
+    participant_bindings: {target: hazard, recipient: target}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.8
+constraint_template_ids:
+  - CT-SAFE-GRASP-HOT
+  - CT-WARN-BEFORE-HANDOVER
+severity_default: 0.8
+likelihood_prior: 0.4

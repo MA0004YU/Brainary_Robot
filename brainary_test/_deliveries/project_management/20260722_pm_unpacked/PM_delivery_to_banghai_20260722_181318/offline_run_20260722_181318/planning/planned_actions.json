@@ -1,0 +1,112 @@
+[
+  {
+    "id": "T1",
+    "action": "grasp",
+    "target": "Prop_011_banana",
+    "depends_on": []
+  },
+  {
+    "id": "T2",
+    "action": "place",
+    "target": "Prop_KLT_3",
+    "depends_on": [
+      "T1"
+    ]
+  },
+  {
+    "id": "T3",
+    "action": "grasp",
+    "target": "Prop_orange_01",
+    "depends_on": [
+      "T2"
+    ]
+  },
+  {
+    "id": "T4",
+    "action": "place",
+    "target": "Prop_KLT_3",
+    "depends_on": [
+      "T3"
+    ]
+  },
+  {
+    "id": "T5",
+    "action": "grasp",
+    "target": "Prop_SM_Mug_C1",
+    "depends_on": [
+      "T4"
+    ]
+  },
+  {
+    "id": "T6",
+    "action": "place",
+    "target": "Prop_KLT_2",
+    "depends_on": [
+      "T5"
+    ]
+  },
+  {
+    "id": "T7",
+    "action": "grasp",
+    "target": "Prop_SM_Mug_D1",
+    "depends_on": [
+      "T6"
+    ]
+  },
+  {
+    "id": "T8",
+    "action": "place",
+    "target": "Prop_KLT_2",
+    "depends_on": [
+      "T7"
+    ]
+  },
+  {
+    "id": "T9",
+    "action": "grasp",
+    "target": "Prop_037_scissors",
+    "depends_on": [
+      "T8"
+    ]
+  },
+  {
+    "id": "T10",
+    "action": "place",
+    "target": "Prop_KLT_1",
+    "depends_on": [
+      "T9"
+    ]
+  },
+  {
+    "id": "T11",
+    "action": "grasp",
+    "target": "Prop_003_cracker_box",
+    "depends_on": [
+      "T10"
+    ]
+  },
+  {
+    "id": "T12",
+    "action": "place",
+    "target": "Prop_KLT_1",
+    "depends_on": [
+      "T11"
+    ]
+  },
+  {
+    "id": "T13",
+    "action": "grasp",
+    "target": "Prop_010_potted_meat_can",
+    "depends_on": [
+      "T12"
+    ]
+  },
+  {
+    "id": "T14",
+    "action": "place",
+    "target": "Prop_KLT_1",
+    "depends_on": [
+      "T13"
+    ]
+  }
+]

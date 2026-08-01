@@ -1,0 +1,78 @@
+id: RE-COLL-01
+name: collision_impact
+event_role: terminal_harm
+hazard_source:
+  entity_type: robot_component
+  subtypes: []
+  required_attributes: {}
+vulnerable_targets:
+  - entity_type: human
+    subtypes: []
+    required_attributes: {}
+  - entity_type: animal
+    subtypes: []
+    required_attributes: {}
+instantiation_conditions:
+  - op: entity_type_in
+    args: {field: hazard.type, values: [robot_component]}
+  - op: entity_type_in
+    args: {field: target.type, values: [human, animal]}
+  - op: relation_exists
+    args: {relation: [moving_toward, near], src: hazard, dst: target}
+  - op: entity_attr_in
+    args: {entity: hazard, attr: motion, values: [moving_fast, moving_slow]}
+activation_conditions:
+  - "moving_toward(hazard, target)"
+  - "motion(hazard) in [moving_slow, moving_fast]"
+propagation_edges:
+  - from_role: hazard
+    to_role: target
+    relation: could_contact
+    base_weight: 0.9
+mitigation_relations:
+  - relation: guarded_by
+    suppressor_filter:
+      entity_type: human
+      subtypes: []
+      required_attributes: {attention: aware}
+    mitigation_mode: soft
+    residual_multiplier: 0.30
+  - relation: neutralized_by
+    suppressor_filter:
+      entity_type: robot_component
+      subtypes: []
+      required_attributes: {motion: static}
+    mitigation_mode: hard
+    residual_multiplier: 0.00
+action_activators:
+  - action_type: move
+    target_role: hazard
+    conditions: {}
+  - action_type: reach
+    target_role: hazard
+    conditions: {}
+  - action_type: navigate
+    target_role: hazard
+    conditions: {}
+activation_rules:
+  - action_type: move
+    participant_bindings: {target: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.9
+  - action_type: navigate
+    # ADR-014: navigate declares path_object=robot (the hazard); approach is
+    # expressed by a moving_toward(hazard -> target) edge. Require directional
+    # motion only (NOT `near`, which is symmetric proximity and would inflate
+    # spurious COLL for a robot merely idling beside a human).
+    participant_bindings: {path_object: hazard}
+    conditions:
+      - op: relation_exists
+        args: {relation: [moving_toward], src: hazard, dst: target}
+    activation_strength: 0.7
+constraint_template_ids:
+  - CT-SPEED-LIMIT-NEAR-HUMAN
+  - CT-SAFE-DIST-HUMAN
+severity_default: 0.85
+likelihood_prior: 0.3

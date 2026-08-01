@@ -41,6 +41,42 @@ _RAW_DICT = {
             # 这是一个通用框架应该具备的鲁棒性：允许感知有误差，但严禁感知彻底离谱
             "max_vol_m3": 0.2
         }
+    },
+    # -----------------------------------------------------------------
+    # brainary_test 场景实际物体（key = GroundingDINO 检测提示词，须是自然语言短语）。
+    # 物理值为【工程估计】(mass/friction/virtual_pain_limit 单位: kg / 无量纲 / N)，
+    # 精确标定应由 simulation 作者按真实资产细调。size_bounds 为体积消歧的粗过滤上下限(m³)。
+    # 对应关系: blue mug=Prop_SM_Mug_D1, yellow mug=Prop_SM_Mug_C1, banana=Prop_011_banana,
+    #           orange=Prop_orange_01, scissors=Prop_037_scissors,
+    #           cracker box=Prop_003_cracker_box, meat can=Prop_010_potted_meat_can。
+    # -----------------------------------------------------------------
+    "blue mug": {          # 蓝色陶瓷马克杯：中等重量、握持稳、能承受夹持
+        "mass": 0.15, "friction": 0.7, "virtual_pain_limit": 60.0,
+        "size_bounds": {"min_vol_m3": 0.0001, "max_vol_m3": 0.005}
+    },
+    "yellow mug": {        # 黄色陶瓷马克杯：同上
+        "mass": 0.15, "friction": 0.7, "virtual_pain_limit": 60.0,
+        "size_bounds": {"min_vol_m3": 0.0001, "max_vol_m3": 0.005}
+    },
+    "banana": {            # 香蕉：软、易压伤 -> 痛觉阈值很低，夹持力必须小
+        "mass": 0.12, "friction": 0.6, "virtual_pain_limit": 15.0,
+        "size_bounds": {"min_vol_m3": 0.00005, "max_vol_m3": 0.002}
+    },
+    "orange": {            # 橙子：球形水果，稍软
+        "mass": 0.15, "friction": 0.6, "virtual_pain_limit": 25.0,
+        "size_bounds": {"min_vol_m3": 0.0001, "max_vol_m3": 0.003}
+    },
+    "scissors": {          # 剪刀：金属、薄、体积小、较硬
+        "mass": 0.08, "friction": 0.5, "virtual_pain_limit": 50.0,
+        "size_bounds": {"min_vol_m3": 0.00001, "max_vol_m3": 0.001}
+    },
+    "cracker box": {       # 饼干盒：纸盒、轻、可压瘪
+        "mass": 0.4, "friction": 0.6, "virtual_pain_limit": 30.0,
+        "size_bounds": {"min_vol_m3": 0.0002, "max_vol_m3": 0.006}
+    },
+    "meat can": {          # 肉罐头：金属罐、较重、耐夹
+        "mass": 0.35, "friction": 0.6, "virtual_pain_limit": 80.0,
+        "size_bounds": {"min_vol_m3": 0.00005, "max_vol_m3": 0.002}
     }
 }
 

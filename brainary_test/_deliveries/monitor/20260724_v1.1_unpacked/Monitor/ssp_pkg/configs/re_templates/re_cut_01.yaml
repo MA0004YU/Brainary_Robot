@@ -1,0 +1,85 @@
+id: RE-CUT-01
+name: cut_injury
+event_role: terminal_harm
+hazard_source:
+  entity_type: physical_object
+  subtypes: [sharp_object]
+  required_attributes: {}
+vulnerable_targets:
+  - entity_type: human
+    subtypes: []
+    required_attributes: {}
+  - entity_type: animal
+    subtypes: []
+    required_attributes: {}
+
+instantiation_conditions:
+  - op: entity_type_in
+    args: {field: hazard.subtype, values: [sharp_object]}
+  - op: entity_type_in
+    args: {field: target.type, values: [human, animal]}
+  - op: relation_exists
+    args: {relation: [reachable, near, holds], src: hazard, dst: target}
+
+activation_conditions:
+  - "reachable(target, hazard)"
+  - "NOT isolated_by(hazard, any)"
+
+propagation_edges:
+  - from_role: hazard
+    to_role: target
+    relation: could_contact
+    base_weight: 0.8
+
+mitigation_relations:
+  - relation: isolated_by
+    suppressor_filter:
+      entity_type: physical_object
+      subtypes: [container]
+      required_attributes: {containment: locked}
+    mitigation_mode: hard
+    residual_multiplier: 0.05
+  - relation: guarded_by
+    suppressor_filter:
+      entity_type: human
+      subtypes: []
+      required_attributes: {attention: aware}
+    mitigation_mode: soft
+    residual_multiplier: 0.30
+
+action_activators:
+  - action_type: pick
+    target_role: hazard
+    conditions: {}
+  - action_type: handover
+    target_role: hazard
+    conditions: {}
+  - action_type: push
+    target_role: hazard
+    conditions: {}
+
+activation_rules:
+  - action_type: handover
+    participant_bindings: {target: hazard, recipient: target}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 1.0
+  - action_type: pick
+    participant_bindings: {target: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.8
+  - action_type: push
+    participant_bindings: {target: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.6
+
+constraint_template_ids:
+  - CT-SAFE-GRASP-SHARP
+  - CT-NO-HANDOVER-CHILD
+severity_default: 0.85
+likelihood_prior: 0.5

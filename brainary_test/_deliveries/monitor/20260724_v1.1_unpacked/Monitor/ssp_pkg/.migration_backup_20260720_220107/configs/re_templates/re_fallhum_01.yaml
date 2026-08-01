@@ -1,0 +1,94 @@
+# RE-FALLHUM-01: fall injury (FALL split, terminal, ADR-021; renamed v0.3 ADR-023).
+# Terminal harm: a vulnerable target (human OR animal) trips/slips/falls — including the
+# v0.1 "fall from elevated support" sub-scene. Mechanism-named (fall_injury) so the
+# faller can be human or pet; victim carried by vulnerable_targets, not the RE label.
+# Grounding (proposal §5): floor state (wet/obstacle) or unstable support, target pose/motion.
+id: RE-FALLHUM-01
+name: fall_injury
+event_role: terminal_harm
+hazard_source:
+  entity_type: physical_object
+  subtypes: [furniture_support]
+  required_attributes: {}
+vulnerable_targets:
+  - entity_type: human
+    subtypes: []
+    required_attributes: {}
+  - entity_type: animal
+    subtypes: []
+    required_attributes: {}
+instantiation_conditions:
+  - op: entity_type_in
+    args: {field: hazard.subtype, values: [furniture_support]}
+  - op: entity_type_in
+    args: {field: target.type, values: [human, animal]}
+  - op: relation_exists
+    args: {relation: [supports], src: hazard, dst: target}
+activation_conditions:
+  - "supports(hazard, target)"
+  - "pose(target) in [standing, bending, reaching]"
+  - "stability(hazard) in [unstable, tipping]"
+propagation_edges:
+  - from_role: target
+    to_role: target
+    relation: could_fall_from
+    base_weight: 0.7
+mitigation_relations:
+  - relation: guarded_by
+    suppressor_filter:
+      entity_type: human
+      subtypes: []
+      required_attributes: {attention: aware}
+    mitigation_mode: soft
+    residual_multiplier: 0.30
+  - relation: neutralized_by
+    suppressor_filter:
+      entity_type: physical_object
+      subtypes: [furniture_support]
+      required_attributes: {stability: stable}
+    mitigation_mode: hard
+    residual_multiplier: 0.00
+action_activators:
+  - action_type: bump
+    target_role: hazard
+    conditions: {}
+  - action_type: push
+    target_role: hazard
+    conditions: {}
+  - action_type: pass_near
+    target_role: hazard
+    conditions: {distance: "< 0.5"}
+  - action_type: startle
+    target_role: target
+    conditions: {}
+activation_rules:
+  - action_type: bump
+    participant_bindings: {target: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 1.0
+  - action_type: push
+    participant_bindings: {target: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.9
+  - action_type: pass_near
+    participant_bindings: {path_object: hazard}
+    conditions:
+      - op: kinematics_lt
+        args: {field: clearance, threshold: 0.5}
+    activation_strength: 0.7
+  - action_type: navigate
+    participant_bindings: {path_object: hazard}
+    conditions:
+      - op: kinematics_lt
+        args: {field: clearance, threshold: 0.5}
+    activation_strength: 0.6
+constraint_template_ids:
+  - CT-NO-BUMP-SUPPORT
+  - CT-SAFE-DIST-FROM-UNSTABLE
+  - CT-SPEED-LIMIT-NEAR-HUMAN
+severity_default: 0.9
+likelihood_prior: 0.3

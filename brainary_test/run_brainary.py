@@ -2,7 +2,7 @@
 # Copyright (c) 2022-2026, The Isaac Lab Project Developers.
 # SPDX-License-Identifier: BSD-3-Clause
 # ======================================================================================
-#  Brainary —— 大脑闭环一键运行:仿真 -> 感知(ChatGPT) -> 记忆 -> 规划(LTM) -> 监控(SafetyCritic)
+#  Brainary —— 大脑闭环一键运行:仿真 -> 感知(ChatGPT) -> 记忆 -> SSP(安全约束) -> 规划(LTM) -> 监控(SafetyCritic)
 # ======================================================================================
 #  一条指令跑通五个模块,每次运行在 output/<时间戳>/ 下建独立文件夹,分别存每个模块的输入/输出:
 #     output/<ts>/sim/         仿真给感知的【照片(5视角RGB)+深度+场景状态】
@@ -34,19 +34,28 @@ _SIM = _BRAINARY / "sim"
 _MEMORY = _BRAINARY / "memory"
 _PERCEPTION = _BRAINARY / "perception"
 _MONITOR = _BRAINARY / "monitor"                       # canonical monitor(内含 Monitor 包)
-# _BRAINARY 上 path -> `import planning.xxx`; _MONITOR 上 path -> `import Monitor.xxx`
+# _BRAINARY 上 path -> `import planning.xxx`; _MONITOR 上 path -> `import Monitor.xxx`;
+# _MONITOR/Monitor/ssp_pkg -> ssp_adapter 内部 `from ssp.xxx`(绝对 import)。
 # 注意:_BRAINARY 放最后插入 => 最高优先级,确保 canonical planning/ 永远赢过任何模块里捆绑的旧副本。
-for _p in (_MONITOR, _SIM, _MEMORY, _PERCEPTION, _PERCEPTION / "scene_describer", _BRAINARY):
+_SSP_PKG = _MONITOR / "Monitor" / "ssp_pkg"
+for _p in (_SSP_PKG, _MONITOR, _SIM, _MEMORY, _PERCEPTION, _PERCEPTION / "scene_describer", _BRAINARY):
     sys.path.insert(0, str(_p))
 
 _TASK_DEFAULT = "把桌面物品按类别分拣进三个篮子"
 # 简单类别映射(GT-mock 感知 + 分拣约束用)。真实感知(GPT)会自己给 category。
 _CATEGORY = {
-    "banana": "水果", "orange": "水果", "lemon": "水果", "pomegranate": "水果",
-    "scissors": "工具", "clamp": "工具", "large_clamp": "工具",
-    "mug": "杯具", "cup": "杯具", "cracker": "食品", "box": "食品", "meat": "食品", "can": "食品",
+    # 子串匹配(name / appearance 里含该关键词即命中)。中英并存,兼容 GPT 的中文外观描述。
+    "banana": "水果", "orange": "水果", "lemon": "水果", "pomegranate": "水果", "apple": "水果",
+    "香蕉": "水果", "橙": "水果", "橘": "水果", "柠檬": "水果", "苹果": "水果", "水果": "水果",
+    "scissors": "工具", "clamp": "工具", "large_clamp": "工具", "knife": "工具", "tool": "工具",
+    "剪": "工具", "刀": "工具", "钳": "工具", "工具": "工具",
+    "mug": "杯具", "cup": "杯具", "杯": "杯具", "马克": "杯具", "杯具": "杯具",
+    "cracker": "食品", "box": "食品", "meat": "食品", "can": "食品",
+    "package": "食品", "snack": "食品", "food": "食品",
+    "包装": "食品", "盒": "食品", "零食": "食品", "罐": "食品", "食品": "食品",
 }
 _SORT_RULES = {"水果": "Prop_KLT_3", "工具": "Prop_KLT_1", "杯具": "Prop_KLT_2", "食品": "Prop_KLT_1"}
+_VALID_CATS = {"水果", "工具", "杯具", "食品"}
 # planning / monitor 直连中转 LLM(感知走 scene_describer:5599 另算)
 _RELAY_BASE = "https://165.154.193.90"
 _LLM_MODEL = "gpt-5.5"
@@ -58,6 +67,20 @@ def _cat_of(name: str) -> str:
         if k in low:
             return v
     return "其他"
+
+
+def _normalize_category(obj: dict) -> str:
+    """把感知给的宽松 category(如 GPT 的 'ball'/'cup'/'package')归一到分拣分类法(水果/工具/杯具/食品)。
+    否则规划器会把 orange_ball 这类当'球'直接丢弃(它不在 category_rules 里)。
+    顺序:name 关键词 -> appearance 关键词 -> 感知已给的合法 category -> '其他'。"""
+    cat = _cat_of(str(obj.get("name", "")))
+    if cat != "其他":
+        return cat
+    cat = _cat_of(str(obj.get("appearance", "")))
+    if cat != "其他":
+        return cat
+    gpt = str(obj.get("category", "")).strip()
+    return gpt if gpt in _VALID_CATS else "其他"
 
 
 # ============================================================ 1) 仿真 SIM
@@ -179,6 +202,12 @@ def stage_perception(mode: str, out_perc: Path, sim, state: dict, view_files: di
                   "objects": objs, "relations": [], "model": "sim-gt-mock"}
         used = "mock (仿真GT,未用ChatGPT)"
     result["perception_backend"] = used
+    # 归一 category 到分拣分类法:GPT 常给 'ball'/'package' 这类宽松标签,规划器会因其不在
+    # category_rules 里而丢弃物体(如橙子 orange_ball 被当'球'漏排)。用 name/appearance 关键词纠正。
+    for _o in result.get("objects", []):
+        _fix = _normalize_category(_o)
+        if _fix != "其他":
+            _o["category"] = _fix
     (out_perc / "perception.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[brainary] === 阶段2 感知[{used}]: {len(result['objects'])} 物体 -> {out_perc/'perception.json'} ===", flush=True)
     return result
@@ -237,6 +266,35 @@ def stage_memory(out_mem: Path, perception: dict, task: str):
 
 
 # ============================================================ 4) 规划 PLANNING
+# ============================================================ 3.5) 场景安全解析 SSP(planner 之前)
+def stage_ssp(out_ssp: Path, snapshot_path: Path, planning_input_path: Path, planning_input: dict) -> dict:
+    """SSP 场景安全解析(记忆之后、规划之前):记忆快照 -> 候选安全约束 -> 回灌 planning_input。
+    V1.1 已修风险爆炸(三态 latent/uncertain + 消 N² 笛卡尔积),约束条数已可控。
+    可选阶段:缺 Monitor/依赖/快照时打印跳过,返回原 planning_input 不变,不影响规划。"""
+    print("[brainary] === 阶段3.5 SSP:场景风险解析 -> 安全约束回流 planner ===", flush=True)
+    if not snapshot_path.exists() or not planning_input_path.exists():
+        print("[brainary] 缺 snapshot / planning_input,SSP 跳过。", flush=True)
+        return planning_input
+    try:
+        from Monitor.ssp_adapter.ssp_runner import run_ssp_pipeline
+        templates = _SSP_PKG / "configs" / "re_templates"
+        res = run_ssp_pipeline(
+            snapshot_path=snapshot_path,
+            planning_input_path=planning_input_path,   # 我们的 planning_input.json(SSP 会把约束合并进来)
+            output_dir=out_ssp,
+            templates_dir=templates,
+            mode="scene_intrinsic",                    # planner 之前,不依赖 plan
+        )
+        enriched = json.loads(Path(planning_input_path).read_text(encoding="utf-8"))
+        s = res.diagnostics.get("summary", {})
+        print(f"[brainary] SSP: activated={s.get('num_activated')} latent={s.get('num_latent')} "
+              f"uncertain={s.get('num_uncertain')} -> {len(res.candidate_constraints)} 候选约束回灌 planning_input", flush=True)
+        return enriched
+    except Exception as exc:
+        print(f"[brainary] SSP 阶段跳过/失败(不影响规划): {exc}", flush=True)
+        return planning_input
+
+
 def _rule_based_steps(planning_input: dict) -> list:
     """兜底规划:按类别规则 grasp->place,统一输出 {id,action,target,depends_on}。"""
     objs = planning_input.get("manipulable_objects", [])
@@ -269,6 +327,8 @@ def stage_planning(out_plan: Path, planning_input: dict, task: str):
         planner = TaskPlanner(llm)              # use_ltm=False:不依赖 EmbodiedLTM 服务
         t = time.time()
         steps = planner.generate_plan(planning_input) or []
+        # 过滤退化/无效步:LLM 失败(如中转 401)时 task_planner 可能返回 [{}],要当作没规划出来
+        steps = [s for s in steps if isinstance(s, dict) and s.get("action") and s.get("target")]
         # planner 把中间件写到 <planning包父目录>/output/ 即 brainary/output/;搬进本次 run 目录
         for f in ("goal_intent.json", "sdg_plan.json"):
             src = _BRAINARY / "output" / f
@@ -289,6 +349,65 @@ def stage_planning(out_plan: Path, planning_input: dict, task: str):
         json.dumps(steps, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[brainary] 规划产物[{backend}]: {len(steps)} 步 -> {out_plan/'plan.json'}", flush=True)
     return plan
+
+
+# ============================================================ 4.2) 物理沙盒校验(可选 --verify)
+def stage_verify(out_verify: Path, plan_dag: list, sim) -> dict | None:
+    """物理沙盒校验(可选):把 plan + 相机数据 POST 给 simulation 的【独立 HTTP 服务】(brainary_sim 进程)。
+    这里【不 import sapien】,只发网络请求 -> 和 env_isaaclab 零冲突、不动驱动、不碰其它模块。
+    服务没起(默认 :5600)-> 打印提示并跳过(返回 None,按放行处理)。起服务见 simulation/INTEGRATION.md。
+    返回服务的结果 dict(含 success / llm_reflection_prompt)或 None。"""
+    print("[brainary] === (可选)阶段4.2 物理沙盒校验(HTTP 服务)===", flush=True)
+    import os
+    addr = os.environ.get("SIM_VERIFY_ADDR", "http://127.0.0.1:5600")
+    try:
+        sys.path.insert(0, str(_BRAINARY / "simulation"))
+        from verify_client import service_up, verify_via_service
+        if not service_up(addr):
+            print(f"[brainary] simulation 服务未在 {addr} 运行 -> 跳过物理校验"
+                  f"(在 brainary_sim 环境起 `python simulation/serve.py`,见 simulation/INTEGRATION.md)", flush=True)
+            return None
+        res = verify_via_service(sim, plan_dag, addr=addr)
+        (out_verify / "physics_verify.json").write_text(
+            json.dumps(res, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        print(f"[brainary] 物理校验: success={res.get('success')} | {res.get('message', '')}", flush=True)
+        return res
+    except Exception as exc:
+        print(f"[brainary] 物理校验跳过/失败: {exc}", flush=True)
+        return None
+
+
+# ============================================================ 4.5) 项目管理 PM(调度+执行)
+def stage_project_management(out_pm: Path, planned_actions_path: Path, planning_input_path: Path, sim=None):
+    """PM 项目管理:别名解析(中文名→仿真ID)+ 依赖分波并行调度 + 执行。
+    sim=None -> dry_run(离线/不动机器人,只调度不执行);传入 BrainaryAPI -> 真实执行 grasp/place。
+    产出 pm_execution_result.json + pm_planned_actions.json(优化后的动作序列,交给监控/执行)。
+    可选阶段:缺 plan/模块时打印跳过,返回 None。"""
+    print("[brainary] === 阶段4.5 PM:别名解析 + 并行调度 + 执行 ===", flush=True)
+    if not planned_actions_path.exists():
+        print("[brainary] 缺 planned_actions,PM 跳过。", flush=True)
+        return None
+    try:
+        from project_management import PMConfig, ProjectManager
+        dry = sim is None
+        pm = ProjectManager(sim=sim, config=PMConfig(dry_run=dry),
+                            object_alias_path=_BRAINARY / "project_management" / "object_aliases.json")
+        report = pm.execute_plan_file(
+            planned_actions_path, planning_input_path=planning_input_path,
+            output_path=out_pm / "pm_execution_result.json")
+        final_actions = [{"id": it.get("id"), "action": it.get("action"),
+                          "target": it.get("target"), "depends_on": it.get("depends_on", [])}
+                         for it in report.get("scheduled_plan", [])]
+        (out_pm / "pm_planned_actions.json").write_text(
+            json.dumps(final_actions, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"[brainary] PM[{'dry_run' if dry else 'execute'}]: "
+              f"scheduled={len(report.get('scheduled_plan', []))} "
+              f"executed={len(report.get('executed', []))} failed={len(report.get('failed', []))} "
+              f"-> {out_pm/'pm_execution_result.json'}", flush=True)
+        return report
+    except Exception as exc:
+        print(f"[brainary] PM 阶段跳过/失败: {exc}", flush=True)
+        return None
 
 
 # ============================================================ 5) 监控 MONITOR / SafetyCritic
@@ -331,6 +450,10 @@ def main() -> int:
     ap.add_argument("--gpt_addr", default="http://127.0.0.1:5599", help="ChatGPT感知服务器(scene_describer)地址")
     ap.add_argument("--task", default=_TASK_DEFAULT, help="任务指令")
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--execute", action="store_true",
+                    help="PM 阶段把 plan 真实下发到机器人执行(grasp/place);默认 dry_run 只调度不动机器人")
+    ap.add_argument("--verify", action="store_true",
+                    help="规划后用物理沙盒 PhysicalValidator 预演校验 plan,失败则反思 replan(需 sim CUDA 环境+权重;缺则跳过)")
     args, _ = ap.parse_known_args()
     args.enable_cameras = True                      # 5 相机渲染
     args.headless = True                            # 批处理闭环:无窗口(更快;要看画面就跑 sim/brainary_test_ui.py)
@@ -338,7 +461,7 @@ def main() -> int:
 
     ts = time.strftime("%Y%m%d_%H%M%S")
     run_dir = _BRAINARY / "output" / ts
-    dirs = {k: run_dir / k for k in ("sim", "perception", "memory", "planning", "monitor")}
+    dirs = {k: run_dir / k for k in ("sim", "perception", "memory", "planning", "project_management", "monitor")}
     for d in dirs.values():
         d.mkdir(parents=True, exist_ok=True)
     print(f"[brainary] 本次运行输出目录: {run_dir}", flush=True)
@@ -349,15 +472,33 @@ def main() -> int:
                                            device=args.device, seed=args.seed, app_launcher=app_launcher)
         perception = stage_perception(args.perception, dirs["perception"], sim, state, view_files, args.gpt_addr)
         planning_input = stage_memory(dirs["memory"], perception, args.task)
+        planning_input = stage_ssp(dirs["monitor"], dirs["memory"] / "memory_snapshot.json",
+                                   dirs["memory"] / "planning_input.json", planning_input)
         plan = stage_planning(dirs["planning"], planning_input, args.task)
+        # (可选)物理沙盒校验:success 放行;False 把 llm_reflection_prompt 注入后单次 replan
+        if getattr(args, "verify", False):
+            vres = stage_verify(dirs["planning"], plan.get("plan", []), sim)
+            if vres and not vres.get("success") and vres.get("llm_reflection_prompt"):
+                planning_input = {**planning_input, "physics_reflection": vres["llm_reflection_prompt"]}
+                plan = stage_planning(dirs["planning"], planning_input, args.task)
+        # PM:--execute 时把真实 sim 传进去执行 grasp/place(闭环到机器人);否则 dry_run 只调度
+        pm = stage_project_management(dirs["project_management"], dirs["planning"] / "planned_actions.json",
+                                      dirs["memory"] / "planning_input.json",
+                                      sim=(sim if getattr(args, "execute", False) else None))
+        # 监控读 PM 优化后的动作序列(缺则退回原 planned_actions)
+        pm_actions = dirs["project_management"] / "pm_planned_actions.json"
+        actions_for_monitor = pm_actions if pm_actions.exists() else dirs["planning"] / "planned_actions.json"
         safety = stage_monitor(dirs["monitor"], dirs["memory"] / "memory_snapshot.json",
-                               dirs["planning"] / "planned_actions.json", _LLM_MODEL)
+                               actions_for_monitor, _LLM_MODEL)
         # 汇总 + latest 软链
         summary = {"timestamp": ts, "task": args.task,
                    "perception_backend": perception.get("perception_backend"),
                    "num_objects": len(perception.get("objects", [])),
                    "planning_backend": plan.get("planning_backend"),
                    "num_plan_steps": plan.get("num_steps"),
+                   "pm": ({"mode": pm.get("mode"), "ok": pm.get("ok"),
+                           "executed": len(pm.get("executed", [])),
+                           "failed": len(pm.get("failed", []))} if pm else None),
                    "safety": safety,
                    "outputs": {k: str(v) for k, v in dirs.items()}}
         (run_dir / "run_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")

@@ -1,0 +1,54 @@
+{
+  "task_instruction": "把桌面物品按类别分拣进三个篮子",
+  "manipulable_objects": {
+    "Prop_011_banana": [
+      "grasp",
+      "place"
+    ],
+    "Prop_orange_01": [
+      "grasp",
+      "place"
+    ],
+    "Prop_SM_Mug_C1": [
+      "grasp",
+      "place"
+    ],
+    "Prop_SM_Mug_D1": [
+      "grasp",
+      "place"
+    ],
+    "Prop_037_scissors": [
+      "grasp",
+      "place"
+    ],
+    "Prop_003_cracker_box": [
+      "grasp",
+      "place"
+    ],
+    "Prop_010_potted_meat_can": [
+      "grasp",
+      "place"
+    ]
+  },
+  "available_skills": [
+    "move_above",
+    "descend",
+    "grasp",
+    "lift",
+    "place",
+    "retreat",
+    "wait",
+    "align_orientation",
+    "reach"
+  ],
+  "constraints": {
+    "category_rules": {
+      "水果": "Prop_KLT_3",
+      "工具": "Prop_KLT_1",
+      "杯具": "Prop_KLT_2",
+      "食品": "Prop_KLT_1"
+    },
+    "no_category_mixing": true,
+    "collision_avoidance": true
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "timestamp": "20260722_181318",
+  "mode": "offline (no-isaac)",
+  "task": "把桌面物品按类别分拣进三个篮子",
+  "sim_data": "/Users/jingqiu/ntu/Brainary_Robot/brainary_test/sample_data/sim",
+  "perception_backend": "mock (仿真GT,未用ChatGPT)",
+  "num_objects": 7,
+  "planning_backend": "rule_based (兜底,未用LLM)",
+  "num_plan_steps": 14,
+  "pm_ok": true,
+  "num_pm_steps": 14,
+  "safety": null,
+  "outputs": {
+    "sim": "/Users/jingqiu/ntu/Brainary_Robot/brainary_test/output/20260722_181318/sim",
+    "perception": "/Users/jingqiu/ntu/Brainary_Robot/brainary_test/output/20260722_181318/perception",
+    "memory": "/Users/jingqiu/ntu/Brainary_Robot/brainary_test/output/20260722_181318/memory",
+    "planning": "/Users/jingqiu/ntu/Brainary_Robot/brainary_test/output/20260722_181318/planning",
+    "project_management": "/Users/jingqiu/ntu/Brainary_Robot/brainary_test/output/20260722_181318/project_management",
+    "monitor": "/Users/jingqiu/ntu/Brainary_Robot/brainary_test/output/20260722_181318/monitor"
+  }
+}

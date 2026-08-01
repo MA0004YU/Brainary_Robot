@@ -1,0 +1,10 @@
+PM模块交付副本
+
+包含内容:
+1. brainary_test/project_management/: PM核心模块代码
+2. brainary_test/run_offline.py: 已接入PM阶段的离线运行入口
+3. brainary_test/requirements-offline.txt: 邦海离线流程依赖
+4. api_contract/API.md: SimInterface接口契约
+5. offline_run_20260722_181318/: 本次离线跑通的关键输入输出
+
+验证结果: planning生成14步; PM scheduled=14 executed=14 failed=0; monitor因未设置API key跳过。

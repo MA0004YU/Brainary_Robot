@@ -37,5 +37,15 @@ simulation/**/*.onnx
 *.pt
 !sample_data/**            # 样例静态数据(小,必须保留)
 
+# --- 密钥/私密文档(绝不上库！含中转 API key 等)---
+指令.txt
+*.secret
+.env
+
+# --- 场景 USD 快照(每次存场景生成的 ~16M 大二进制;靠 json registry/manifest 复现,不进库)---
+*.usd
+*.usda
+*.usdc
+
 # --- 系统杂项 ---
 .DS_Store

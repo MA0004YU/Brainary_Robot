@@ -635,7 +635,8 @@ class SimInterface:
     def _is_holding(self, obj: Optional[str] = None) -> bool:
         """物理判定是否夹着东西:夹爪合上(未完全张开)。给了 obj 且能读到其位姿时,再要求它在 TCP 附近。"""
         gw = self.get_gripper_width()
-        closed = 0.004 < gw < 0.075          # 完全张开约 0.08;完全空合约 ~0
+        # 放宽:宽口杯抓住时 gw 接近满开(0.08),薄壁物 gw 很小;只排除"完全张开(空)"和"完全空合(~0)"
+        closed = 0.003 < gw < 0.079
         if not closed:
             return False
         if obj is None:
@@ -645,7 +646,8 @@ class SimInterface:
             return True
         tcp = self.get_tcp_pose()["position"]
         d = sum((op["position"][i] - tcp[i]) ** 2 for i in range(3)) ** 0.5
-        return d < 0.12
+        # 放宽到 0.16:高杯/侧抓时物体中心离 TCP 可达 ~11.7cm(SM_Mug 抓取位姿 pos[0,0.06,0.1]),原 0.12 卡边界会误判
+        return d < 0.16
 
     def _resolve_grasp_pose(self, obj: str):
         """抓取位姿:①控制器的实时/存盘位姿;②兜底=场景刚体位置 + 俯视朝向。"""

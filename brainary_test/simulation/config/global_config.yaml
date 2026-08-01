@@ -30,6 +30,13 @@ simulator_config:
   settling_linear_damping: 10.0
   settling_angular_damping: 10.0
   velocity_gate_epsilon: 0.005      # 速度门控阈值 (m/s)
+  # PhysX 求解器稳定性(建 Scene 前生效)。夹爪硬挤压积木时默认设置会解算发散 -> scene.step() 段错误。
+  # 实测：只把速度迭代 1 -> 4 就能根治段错误，且机械臂初始漂移与原版完全一致(0.3392 rad)。
+  # ⚠️ 别调高 solver_position_iterations：实测 50 会让机械臂第一步就炸开(漂移 2.3 rad)，
+  #    (50, 1) 组合甚至在只有一条空机械臂的场景里就直接段错误。
+  solver_position_iterations: 10    # PhysX 默认值，保持不变
+  solver_velocity_iterations: 4     # 默认 1 -> 4：根治夹持解算发散
+  enable_ccd: false                 # 实测对本场景无影响，保持关闭以贴近原版行为
 
 # 5. 真实物理学红线探针阈值
 detector_thresholds:

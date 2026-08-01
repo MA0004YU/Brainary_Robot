@@ -18,14 +18,17 @@ _deliveries/
 | planning | `20260706_base_pipeline.zip` | 早期 感知+记忆+规划 离线管线 |
 | planning | `20260711_ltm_pipeline.zip` + `_unpacked/` | 加了 EmbodiedLTM 的规划(当前 canonical 源) |
 | planning | `_working_offline_pipeline/` | 我方合并/修复过的离线工作副本(留档) |
-| monitor  | `20260719_monitor.zip` | SSP + SafetyCritic(当前 canonical 源) |
-| simulation | `20260706_simulation.zip` | SAPIEN 物理校验沙盒(尚未接入 run_brainary) |
+| monitor  | `20260719_monitor.zip` | SSP + SafetyCritic 初版 |
+| monitor  | `Perception_memory_planner_monitor_pipeline-V1.1.zip` + `20260724_v1.1_unpacked/` | **V1.1(当前 canonical 源)**:SSP 修复风险爆炸(三态 latent/uncertain,消 N² 笛卡尔积);已接进 planner 之前回灌约束 |
+| simulation | `20260706_simulation.zip` | SAPIEN 物理校验沙盒(初版) |
+| simulation | `simulation(1).zip` + `requirements.txt` | **最新**:代码与初版一致,更新=重型 CUDA 依赖清单 + weights/cg_weights 权重下载 + PhysicalValidator 接入契约 |
+| project_management | `PM_delivery_to_banghai_20260722_181318.zip` + `20260722_pm_unpacked/` | **PM 项目管理**(当前 canonical 源):plan 别名解析(中文名→仿真ID)+ 依赖分波调度 + 执行(dry_run/真机) |
 
 ## canonical(实际运行的)在哪
 
 ```
 brainary/
-  perception/  memory/  planning/  monitor/  simulation/   ← 每模块最新代码
+  perception/ memory/ planning/ project_management/ monitor/ simulation/   ← 每模块最新代码
   run_brainary.py                                           ← 唯一编排,跑上面 5 个
   output/<时间戳>/{sim,perception,memory,planning,monitor}/ ← 每次运行的输出
 ```
@@ -47,5 +50,5 @@ conda activate env_isaaclab
 
 ## 已知需要对方修的(见对话记录)
 
-- **monitor/SSP**:`scene_intrinsic`/`action_conditioned` 都会激活数百上千风险因子(家具被当危险物 + 自引用因子),回灌 planning_input 会撑爆 → 暂未接进规划前。
+- ~~monitor/SSP 风险爆炸~~ **已在 V1.1 修复**(三态 latent/uncertain + 消 N² 笛卡尔积;本场景 7 物体 activated 0/latent 7 → 14 约束),已接进 planner 之前回灌。
 - **simulation**:缺 sapien/GSA、无环境说明、需要深度+相机内外参、目标名中英对不上 → 暂未接入 run_brainary。

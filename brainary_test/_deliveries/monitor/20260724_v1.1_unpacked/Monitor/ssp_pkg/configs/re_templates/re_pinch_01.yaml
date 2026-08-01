@@ -1,0 +1,81 @@
+# RE-PINCH-01: pinch/crush injury (new, ADR-021). Terminal harm: a movable barrier
+# (door / drawer / clamp / gripper) closes on a human's limb. Grounding (proposal §5):
+# hazard.subtype=movable_barrier, closing motion, target limb in the gap.
+id: RE-PINCH-01
+name: pinch_crush_injury
+event_role: terminal_harm
+hazard_source:
+  entity_type: physical_object
+  subtypes: [movable_barrier]
+  required_attributes: {}
+vulnerable_targets:
+  - entity_type: human
+    subtypes: []
+    required_attributes: {}
+  - entity_type: animal
+    subtypes: []
+    required_attributes: {}
+instantiation_conditions:
+  - op: entity_type_in
+    args: {field: hazard.subtype, values: [movable_barrier]}
+  - op: entity_type_in
+    args: {field: target.type, values: [human, animal]}
+  - op: relation_exists
+    args: {relation: [near, contact], src: hazard, dst: target}
+activation_conditions:
+  - "near(hazard, target)"
+  - "motion(hazard) in [moving_slow, moving_fast]"
+propagation_edges:
+  - from_role: hazard
+    to_role: target
+    relation: could_crush
+    base_weight: 0.8
+mitigation_relations:
+  - relation: neutralized_by
+    suppressor_filter:
+      entity_type: physical_object
+      subtypes: [movable_barrier]
+      required_attributes: {motion: static}
+    mitigation_mode: hard
+    residual_multiplier: 0.00
+  - relation: guarded_by
+    suppressor_filter:
+      entity_type: human
+      subtypes: []
+      required_attributes: {attention: aware}
+    mitigation_mode: soft
+    residual_multiplier: 0.30
+action_activators:
+  - action_type: close
+    target_role: hazard
+    conditions: {}
+  - action_type: push
+    target_role: hazard
+    conditions: {}
+  - action_type: grasp
+    target_role: hazard
+    conditions: {}
+activation_rules:
+  - action_type: close
+    participant_bindings: {target: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 1.0
+  - action_type: push
+    participant_bindings: {target: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.8
+  - action_type: grasp
+    participant_bindings: {target: hazard}
+    conditions:
+      - op: participant_is
+        args: {role: target, matches: hazard}
+    activation_strength: 0.7
+constraint_template_ids:
+  - CT-NO-CLOSE-ON-LIMB
+  - CT-FORCE-LIMIT-GRIPPER
+severity_default: 0.7
+likelihood_prior: 0.3

@@ -1,0 +1,34 @@
+# ======================================================================================
+#  Brainary 离线运行依赖(无需 Isaac Sim)—— 跑 run_offline.py 所需
+#  已在干净 venv 实测:感知(mock) + 记忆 + 规划(LTM) + 监控(SafetyCritic) 全跑通。
+#
+#  安装:
+#     python -m venv .venv && source .venv/bin/activate
+#     # torch 用 CPU 版即可(体积小、无需显卡):
+#     pip install torch --index-url https://download.pytorch.org/whl/cpu
+#     pip install -r requirements-offline.txt
+# ======================================================================================
+
+# --- 核心(必装)---
+numpy            # 记忆 / 监控
+Pillow           # 记忆(perception_vlm 硬依赖)
+requests         # 规划 / 监控 调中转 LLM
+urllib3          # 同上(关自签证书告警)
+pydantic>=2      # 监控 SSP
+networkx         # 监控 SSP
+structlog        # 监控 SSP
+PyYAML           # 监控 SSP + simulation 配置
+
+# torch 单独装 CPU 版(见上方注释)。记忆模块 import torch(perception_vlm 第11行),必须有。
+# torch
+
+# ======================================================================================
+#  以下为【可选】,默认离线运行(--perception mock)不需要:
+#
+#  - 若感知要用本地 Qwen 视觉模型(而非 mock / ChatGPT):
+#      transformers  accelerate  qwen-vl-utils
+#  - 若规划要开长期记忆 EmbodiedLTM 服务(--use-ltm,需另起 :8000 服务):
+#      见 planning/EmbodiedLTM/requirements.txt(fastapi/openai/lightrag 等,建议单独 conda 环境)
+#  - 若感知要用 ChatGPT 服务器(scene_describer:5599):
+#      见 perception/scene_describer(自带 .venv_vlm,openai/httpx 等,建议单独 venv)
+# ======================================================================================

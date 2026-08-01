@@ -1,0 +1,583 @@
+{
+  "ok": true,
+  "mode": "dry_run",
+  "scheduled_plan": [
+    {
+      "id": "T1",
+      "action": "grasp",
+      "target": "Prop_011_banana",
+      "depends_on": [],
+      "resources": [
+        "robot_arm",
+        "gripper",
+        "target:Prop_011_banana"
+      ],
+      "duration": 1.0,
+      "priority": 0,
+      "wave": 0,
+      "start_time": 0.0,
+      "end_time": 1.0,
+      "parallel_group": [
+        "T1"
+      ]
+    },
+    {
+      "id": "T2",
+      "action": "place",
+      "target": "Prop_KLT_3",
+      "depends_on": [
+        "T1"
+      ],
+      "resources": [
+        "robot_arm",
+        "gripper",
+        "target:Prop_KLT_3"
+      ],
+      "duration": 1.0,
+      "priority": 0,
+      "wave": 1,
+      "start_time": 1.0,
+      "end_time": 2.0,
+      "parallel_group": [
+        "T2"
+      ]
+    },
+    {
+      "id": "T3",
+      "action": "grasp",
+      "target": "Prop_orange_01",
+      "depends_on": [
+        "T2"
+      ],
+      "resources": [
+        "robot_arm",
+        "gripper",
+        "target:Prop_orange_01"
+      ],
+      "duration": 1.0,
+      "priority": 0,
+      "wave": 2,
+      "start_time": 2.0,
+      "end_time": 3.0,
+      "parallel_group": [
+        "T3"
+      ]
+    },
+    {
+      "id": "T4",
+      "action": "place",
+      "target": "Prop_KLT_3",
+      "depends_on": [
+        "T3"
+      ],
+      "resources": [
+        "robot_arm",
+        "gripper",
+        "target:Prop_KLT_3"
+      ],
+      "duration": 1.0,
+      "priority": 0,
+      "wave": 3,
+      "start_time": 3.0,
+      "end_time": 4.0,
+      "parallel_group": [
+        "T4"
+      ]
+    },
+    {
+      "id": "T5",
+      "action": "grasp",
+      "target": "Prop_SM_Mug_C1",
+      "depends_on": [
+        "T4"
+      ],
+      "resources": [
+        "robot_arm",
+        "gripper",
+        "target:Prop_SM_Mug_C1"
+      ],
+      "duration": 1.0,
+      "priority": 0,
+      "wave": 4,
+      "start_time": 4.0,
+      "end_time": 5.0,
+      "parallel_group": [
+        "T5"
+      ]
+    },
+    {
+      "id": "T6",
+      "action": "place",
+      "target": "Prop_KLT_2",
+      "depends_on": [
+        "T5"
+      ],
+      "resources": [
+        "robot_arm",
+        "gripper",
+        "target:Prop_KLT_2"
+      ],
+      "duration": 1.0,
+      "priority": 0,
+      "wave": 5,
+      "start_time": 5.0,
+      "end_time": 6.0,
+      "parallel_group": [
+        "T6"
+      ]
+    },
+    {
+      "id": "T7",
+      "action": "grasp",
+      "target": "Prop_SM_Mug_D1",
+      "depends_on": [
+        "T6"
+      ],
+      "resources": [
+        "robot_arm",
+        "gripper",
+        "target:Prop_SM_Mug_D1"
+      ],
+      "duration": 1.0,
+      "priority": 0,
+      "wave": 6,
+      "start_time": 6.0,
+      "end_time": 7.0,
+      "parallel_group": [
+        "T7"
+      ]
+    },
+    {
+      "id": "T8",
+      "action": "place",
+      "target": "Prop_KLT_2",
+      "depends_on": [
+        "T7"
+      ],
+      "resources": [
+        "robot_arm",
+        "gripper",
+        "target:Prop_KLT_2"
+      ],
+      "duration": 1.0,
+      "priority": 0,
+      "wave": 7,
+      "start_time": 7.0,
+      "end_time": 8.0,
+      "parallel_group": [
+        "T8"
+      ]
+    },
+    {
+      "id": "T9",
+      "action": "grasp",
+      "target": "Prop_037_scissors",
+      "depends_on": [
+        "T8"
+      ],
+      "resources": [
+        "robot_arm",
+        "gripper",
+        "target:Prop_037_scissors"
+      ],
+      "duration": 1.0,
+      "priority": 0,
+      "wave": 8,
+      "start_time": 8.0,
+      "end_time": 9.0,
+      "parallel_group": [
+        "T9"
+      ]
+    },
+    {
+      "id": "T10",
+      "action": "place",
+      "target": "Prop_KLT_1",
+      "depends_on": [
+        "T9"
+      ],
+      "resources": [
+        "robot_arm",
+        "gripper",
+        "target:Prop_KLT_1"
+      ],
+      "duration": 1.0,
+      "priority": 0,
+      "wave": 9,
+      "start_time": 9.0,
+      "end_time": 10.0,
+      "parallel_group": [
+        "T10"
+      ]
+    },
+    {
+      "id": "T11",
+      "action": "grasp",
+      "target": "Prop_003_cracker_box",
+      "depends_on": [
+        "T10"
+      ],
+      "resources": [
+        "robot_arm",
+        "gripper",
+        "target:Prop_003_cracker_box"
+      ],
+      "duration": 1.0,
+      "priority": 0,
+      "wave": 10,
+      "start_time": 10.0,
+      "end_time": 11.0,
+      "parallel_group": [
+        "T11"
+      ]
+    },
+    {
+      "id": "T12",
+      "action": "place",
+      "target": "Prop_KLT_1",
+      "depends_on": [
+        "T11"
+      ],
+      "resources": [
+        "robot_arm",
+        "gripper",
+        "target:Prop_KLT_1"
+      ],
+      "duration": 1.0,
+      "priority": 0,
+      "wave": 11,
+      "start_time": 11.0,
+      "end_time": 12.0,
+      "parallel_group": [
+        "T12"
+      ]
+    },
+    {
+      "id": "T13",
+      "action": "grasp",
+      "target": "Prop_010_potted_meat_can",
+      "depends_on": [
+        "T12"
+      ],
+      "resources": [
+        "robot_arm",
+        "gripper",
+        "target:Prop_010_potted_meat_can"
+      ],
+      "duration": 1.0,
+      "priority": 0,
+      "wave": 12,
+      "start_time": 12.0,
+      "end_time": 13.0,
+      "parallel_group": [
+        "T13"
+      ]
+    },
+    {
+      "id": "T14",
+      "action": "place",
+      "target": "Prop_KLT_1",
+      "depends_on": [
+        "T13"
+      ],
+      "resources": [
+        "robot_arm",
+        "gripper",
+        "target:Prop_KLT_1"
+      ],
+      "duration": 1.0,
+      "priority": 0,
+      "wave": 13,
+      "start_time": 13.0,
+      "end_time": 14.0,
+      "parallel_group": [
+        "T14"
+      ]
+    }
+  ],
+  "executed": [
+    {
+      "id": "T1",
+      "action": "grasp",
+      "target": "Prop_011_banana",
+      "ok": true,
+      "reason": "",
+      "steps": 0,
+      "timed_out": false,
+      "attempts": 1,
+      "skill_result": {
+        "dry_run": true,
+        "resources": [
+          "robot_arm",
+          "gripper",
+          "target:Prop_011_banana"
+        ]
+      },
+      "feedback": "dry-run: 未调用仿真技能",
+      "wave": 0
+    },
+    {
+      "id": "T2",
+      "action": "place",
+      "target": "Prop_KLT_3",
+      "ok": true,
+      "reason": "",
+      "steps": 0,
+      "timed_out": false,
+      "attempts": 1,
+      "skill_result": {
+        "dry_run": true,
+        "resources": [
+          "robot_arm",
+          "gripper",
+          "target:Prop_KLT_3"
+        ]
+      },
+      "feedback": "dry-run: 未调用仿真技能",
+      "wave": 1
+    },
+    {
+      "id": "T3",
+      "action": "grasp",
+      "target": "Prop_orange_01",
+      "ok": true,
+      "reason": "",
+      "steps": 0,
+      "timed_out": false,
+      "attempts": 1,
+      "skill_result": {
+        "dry_run": true,
+        "resources": [
+          "robot_arm",
+          "gripper",
+          "target:Prop_orange_01"
+        ]
+      },
+      "feedback": "dry-run: 未调用仿真技能",
+      "wave": 2
+    },
+    {
+      "id": "T4",
+      "action": "place",
+      "target": "Prop_KLT_3",
+      "ok": true,
+      "reason": "",
+      "steps": 0,
+      "timed_out": false,
+      "attempts": 1,
+      "skill_result": {
+        "dry_run": true,
+        "resources": [
+          "robot_arm",
+          "gripper",
+          "target:Prop_KLT_3"
+        ]
+      },
+      "feedback": "dry-run: 未调用仿真技能",
+      "wave": 3
+    },
+    {
+      "id": "T5",
+      "action": "grasp",
+      "target": "Prop_SM_Mug_C1",
+      "ok": true,
+      "reason": "",
+      "steps": 0,
+      "timed_out": false,
+      "attempts": 1,
+      "skill_result": {
+        "dry_run": true,
+        "resources": [
+          "robot_arm",
+          "gripper",
+          "target:Prop_SM_Mug_C1"
+        ]
+      },
+      "feedback": "dry-run: 未调用仿真技能",
+      "wave": 4
+    },
+    {
+      "id": "T6",
+      "action": "place",
+      "target": "Prop_KLT_2",
+      "ok": true,
+      "reason": "",
+      "steps": 0,
+      "timed_out": false,
+      "attempts": 1,
+      "skill_result": {
+        "dry_run": true,
+        "resources": [
+          "robot_arm",
+          "gripper",
+          "target:Prop_KLT_2"
+        ]
+      },
+      "feedback": "dry-run: 未调用仿真技能",
+      "wave": 5
+    },
+    {
+      "id": "T7",
+      "action": "grasp",
+      "target": "Prop_SM_Mug_D1",
+      "ok": true,
+      "reason": "",
+      "steps": 0,
+      "timed_out": false,
+      "attempts": 1,
+      "skill_result": {
+        "dry_run": true,
+        "resources": [
+          "robot_arm",
+          "gripper",
+          "target:Prop_SM_Mug_D1"
+        ]
+      },
+      "feedback": "dry-run: 未调用仿真技能",
+      "wave": 6
+    },
+    {
+      "id": "T8",
+      "action": "place",
+      "target": "Prop_KLT_2",
+      "ok": true,
+      "reason": "",
+      "steps": 0,
+      "timed_out": false,
+      "attempts": 1,
+      "skill_result": {
+        "dry_run": true,
+        "resources": [
+          "robot_arm",
+          "gripper",
+          "target:Prop_KLT_2"
+        ]
+      },
+      "feedback": "dry-run: 未调用仿真技能",
+      "wave": 7
+    },
+    {
+      "id": "T9",
+      "action": "grasp",
+      "target": "Prop_037_scissors",
+      "ok": true,
+      "reason": "",
+      "steps": 0,
+      "timed_out": false,
+      "attempts": 1,
+      "skill_result": {
+        "dry_run": true,
+        "resources": [
+          "robot_arm",
+          "gripper",
+          "target:Prop_037_scissors"
+        ]
+      },
+      "feedback": "dry-run: 未调用仿真技能",
+      "wave": 8
+    },
+    {
+      "id": "T10",
+      "action": "place",
+      "target": "Prop_KLT_1",
+      "ok": true,
+      "reason": "",
+      "steps": 0,
+      "timed_out": false,
+      "attempts": 1,
+      "skill_result": {
+        "dry_run": true,
+        "resources": [
+          "robot_arm",
+          "gripper",
+          "target:Prop_KLT_1"
+        ]
+      },
+      "feedback": "dry-run: 未调用仿真技能",
+      "wave": 9
+    },
+    {
+      "id": "T11",
+      "action": "grasp",
+      "target": "Prop_003_cracker_box",
+      "ok": true,
+      "reason": "",
+      "steps": 0,
+      "timed_out": false,
+      "attempts": 1,
+      "skill_result": {
+        "dry_run": true,
+        "resources": [
+          "robot_arm",
+          "gripper",
+          "target:Prop_003_cracker_box"
+        ]
+      },
+      "feedback": "dry-run: 未调用仿真技能",
+      "wave": 10
+    },
+    {
+      "id": "T12",
+      "action": "place",
+      "target": "Prop_KLT_1",
+      "ok": true,
+      "reason": "",
+      "steps": 0,
+      "timed_out": false,
+      "attempts": 1,
+      "skill_result": {
+        "dry_run": true,
+        "resources": [
+          "robot_arm",
+          "gripper",
+          "target:Prop_KLT_1"
+        ]
+      },
+      "feedback": "dry-run: 未调用仿真技能",
+      "wave": 11
+    },
+    {
+      "id": "T13",
+      "action": "grasp",
+      "target": "Prop_010_potted_meat_can",
+      "ok": true,
+      "reason": "",
+      "steps": 0,
+      "timed_out": false,
+      "attempts": 1,
+      "skill_result": {
+        "dry_run": true,
+        "resources": [
+          "robot_arm",
+          "gripper",
+          "target:Prop_010_potted_meat_can"
+        ]
+      },
+      "feedback": "dry-run: 未调用仿真技能",
+      "wave": 12
+    },
+    {
+      "id": "T14",
+      "action": "place",
+      "target": "Prop_KLT_1",
+      "ok": true,
+      "reason": "",
+      "steps": 0,
+      "timed_out": false,
+      "attempts": 1,
+      "skill_result": {
+        "dry_run": true,
+        "resources": [
+          "robot_arm",
+          "gripper",
+          "target:Prop_KLT_1"
+        ]
+      },
+      "feedback": "dry-run: 未调用仿真技能",
+      "wave": 13
+    }
+  ],
+  "failed": [],
+  "skipped": [],
+  "feedback": []
+}
