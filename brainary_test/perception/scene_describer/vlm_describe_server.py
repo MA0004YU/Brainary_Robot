@@ -32,7 +32,7 @@ import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from schema import SCENE_SCHEMA, build_input_text, system_prompt
+from schema import SCENE_SCHEMA, build_input_text, build_scene_schema, system_prompt  # noqa: F401
 
 
 def _cfg() -> dict:
@@ -71,14 +71,20 @@ def _make_client(cfg: dict):
     return OpenAI(base_url=cfg["base_url"], api_key=api_key, timeout=timeout)
 
 
-def _describe(client, cfg: dict, front_b64: str, wrist_b64: str, state: dict) -> dict:
-    """调一次 Responses API:两图(input_image) + 文本状态,JSON Schema 强约束输出。"""
+def _describe(client, cfg: dict, views, state: dict, candidates=None) -> dict:
+    """调一次 Responses API:N 张带标注的图(input_image) + 文本状态,JSON Schema 强约束输出。
+
+    views:[(视角名, base64png), ...],顺序即送图顺序(建议 top 在最前,信息量最大)。
+    candidates:仿真真实物体 id 清单。给了就把 objects[].name 收成 enum(模型只能从中选),
+    从源头杜绝 white_cup / yellow_curved_object 这类自由命名导致的下游 unresolved。
+    """
     lang = cfg.get("lang", "zh")
-    content = [
-        {"type": "input_text", "text": build_input_text(state, lang)},
-        {"type": "input_image", "image_url": f"data:image/png;base64,{front_b64}", "detail": "auto"},
-        {"type": "input_image", "image_url": f"data:image/png;base64,{wrist_b64}", "detail": "auto"},
-    ]
+    names = [n for n, _ in views]
+    content = [{"type": "input_text",
+                "text": build_input_text(state, lang, candidates=candidates, view_names=names)}]
+    for _n, b64 in views:
+        content.append({"type": "input_image", "image_url": f"data:image/png;base64,{b64}",
+                        "detail": "auto"})
     kwargs = dict(
         model=cfg["model"],
         instructions=system_prompt(lang),
@@ -89,7 +95,7 @@ def _describe(client, cfg: dict, front_b64: str, wrist_b64: str, state: dict) ->
                 "type": "json_schema",
                 "name": "scene_description",
                 "strict": True,
-                "schema": SCENE_SCHEMA,
+                "schema": build_scene_schema(candidates),
             }
         },
     )
@@ -130,8 +136,11 @@ class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802
         if self.path.rstrip("/") == "/health":
             c = self.server.cfg
-            self._send(200, {"ok": True, "model": c["model"], "base_url": c["base_url"],
-                             "reasoning": c["reasoning"], "insecure_tls": c["insecure_tls"]})
+            # views_api / candidates_api:新版能力标记。重启后 curl /health 看到它们才说明
+            # 加载的是新代码(多路送图 + name 枚举约束);看不到就是旧进程还在,必须 kill。
+            self._send(200, {"ok": True, "model": "大模型", "base_url": c["base_url"],
+                             "reasoning": c["reasoning"], "insecure_tls": c["insecure_tls"],
+                             "views_api": True, "candidates_api": True})
         else:
             self._send(404, {"ok": False, "error": "use POST /describe or GET /health"})
 
@@ -145,16 +154,29 @@ class _Handler(BaseHTTPRequestHandler):
         except Exception as exc:
             self._send(400, {"ok": False, "error": f"bad request body: {exc}"})
             return
-        front = payload.get("rgb_front_b64")
-        wrist = payload.get("rgb_wrist_b64")
         state = payload.get("state", {})
-        if not front or not wrist:
-            self._send(400, {"ok": False, "error": "rgb_front_b64 and rgb_wrist_b64 are required"})
+        candidates = payload.get("candidates") or None   # 可选:仿真真实物体 id 清单 -> name 上 enum
+        # 新接口:views={视角名: b64},想送几路送几路(top 最有用)。老接口 rgb_front/wrist_b64 仍兼容。
+        views = []
+        raw_views = payload.get("views")
+        if isinstance(raw_views, dict) and raw_views:
+            order = [k for k in ("top", "front", "left", "right", "wrist") if k in raw_views]
+            order += [k for k in raw_views if k not in order]
+            views = [(k, raw_views[k]) for k in order if raw_views.get(k)]
+        else:
+            for _k, _n in (("rgb_front_b64", "front"), ("rgb_wrist_b64", "wrist")):
+                if payload.get(_k):
+                    views.append((_n, payload[_k]))
+        if not views:
+            self._send(400, {"ok": False,
+                             "error": "need 'views' {name: b64} or rgb_front_b64/rgb_wrist_b64"})
             return
         t0 = time.time()
         try:
-            result = _describe(self.server.client, self.server.cfg, front, wrist, state)
-            self._send(200, {"ok": True, "result": result, "model": self.server.cfg["model"],
+            result = _describe(self.server.client, self.server.cfg, views, state,
+                               candidates=candidates)
+            self._send(200, {"ok": True, "result": result, "model": "大模型",
+                             "views": [n for n, _ in views],
                              "latency_s": round(time.time() - t0, 2)})
         except Exception as exc:
             print(f"[vlm-server] describe error: {exc}", flush=True)

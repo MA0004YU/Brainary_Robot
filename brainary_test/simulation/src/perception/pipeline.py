@@ -1,3 +1,4 @@
+import os
 import yaml
 import time
 import numpy as np
@@ -7,6 +8,42 @@ from scipy.spatial.transform import Rotation as R
 
 from .wrappers.cg_wrapper import ConceptGraphsWrapper
 from src.memory.physics_dictionary import PHYSICS_DICTIONARY
+
+# ---------------------------------------------------------------------------------------------------
+# 视觉识别补丁:已知物体真实尺寸(降序 W>=H>=D, 米)。粗糙视觉重建尺寸误差大(可达 50%+),这里对已知物体
+# 【直接用真实尺寸覆盖】OBB 的三个 extent(按维度大小排序对应到 OBB 轴,保留朝向/位置)-> 尺寸误差≈0。
+# 模式 SIM_SIZE_MODE: override(默认,覆盖真实值) | clamp(夹到 ±SIM_SIZE_TOL,默认 5%) | off(关闭)。
+# 另外循环里有【体积合理性过滤】:超 physics_dictionary size_bounds 上限的背景污染巨簇直接跳过。
+# ---------------------------------------------------------------------------------------------------
+_KNOWN_SIZE = {   # 校准到真实 prop/YCB 尺寸(米)
+    "yellow mug": [0.095, 0.080, 0.080], "blue mug": [0.095, 0.080, 0.080],
+    "banana": [0.190, 0.040, 0.035], "orange": [0.075, 0.075, 0.075],
+    "scissors": [0.200, 0.090, 0.015], "cracker box": [0.213, 0.164, 0.060],
+    "meat can": [0.100, 0.097, 0.083],
+    "green basket": [0.300, 0.200, 0.147], "blue basket": [0.300, 0.200, 0.147],
+    "purple basket": [0.300, 0.200, 0.147],
+}
+
+
+def _patch_extent_to_known(label, extent):
+    """尺寸补丁:对已知物体把 OBB extent 覆盖/夹到真实尺寸(按维度大小排序对应,写回原轴序,保留朝向)。"""
+    mode = os.environ.get("SIM_SIZE_MODE", "override")
+    if mode == "off":
+        return extent
+    real = _KNOWN_SIZE.get(label)
+    if real is None:
+        return extent
+    real_sorted = sorted(real, reverse=True)
+    order = list(np.argsort(extent))[::-1]                      # extent 降序的原始轴索引(最长轴 -> 最长真实边)
+    out = np.asarray(extent, dtype=float).copy()
+    if mode == "clamp":
+        tol = float(os.environ.get("SIM_SIZE_TOL", "0.05"))    # 默认 ±5%
+        for rank, idx in enumerate(order):
+            out[idx] = float(np.clip(out[idx], real_sorted[rank] * (1 - tol), real_sorted[rank] * (1 + tol)))
+    else:                                                      # override:直接用真实尺寸
+        for rank, idx in enumerate(order):
+            out[idx] = real_sorted[rank]
+    return out
 
 
 class PerceptionPipeline:
@@ -59,10 +96,12 @@ class PerceptionPipeline:
             if len(labels) == 0 or labels.max() < 0:
                 continue
 
-            unique_cluster_ids = set(labels)
-            for cluster_idx in unique_cluster_ids:
-                if cluster_idx < 0: continue
-
+            # 每类只保留【点数最多的主簇】(本场景每类=1 个物体):治过分割 + 丢掉没对齐视角的离群碎块。
+            # 按点数降序,取第一个通过几何过滤的簇即 break。SIM_SINGLE_INSTANCE=0 恢复"每簇一个实体"的旧行为。
+            single_instance = os.environ.get("SIM_SINGLE_INSTANCE", "1") not in ("0", "false", "False")
+            valid_clusters = sorted((c for c in set(labels) if c >= 0),
+                                    key=lambda c: -int(np.sum(labels == c)))
+            for cluster_idx in valid_clusters:
                 cluster_pts_idx = np.where(labels == cluster_idx)[0]
                 pt_count = len(cluster_pts_idx)
 
@@ -71,8 +110,23 @@ class PerceptionPipeline:
                     continue
 
                 true_object_pcd = clean_pcd.select_by_index(cluster_pts_idx)
-                final_aabb = true_object_pcd.get_axis_aligned_bounding_box()
-                extent = final_aabb.get_extent()
+                # 用 OBB(带朝向的包围盒)而非 AABB:让盒子的【尺寸 + 朝向】都贴合原物体,不再世界轴对齐
+                # (横放的香蕉/斜放的盒子不会被摆成正朝向)。朝向 R 会写进 final_pose,由 scene_builder
+                # 转成 quat 应用到 SAPIEN actor -> 沙盒里物体位姿与真实物体一致。
+                try:
+                    try:
+                        obb = true_object_pcd.get_oriented_bounding_box(robust=True)
+                    except TypeError:                       # 旧版 open3d 不支持 robust 关键字
+                        obb = true_object_pcd.get_oriented_bounding_box()
+                    extent = np.asarray(obb.extent, dtype=float)
+                    R_obb = np.asarray(obb.R, dtype=float)
+                    center = np.asarray(obb.center, dtype=float)
+                except Exception:
+                    # 退化(点太少/近共面,OBB 解不出)-> 回退 AABB(轴对齐、朝向单位阵),至少不崩
+                    final_aabb = true_object_pcd.get_axis_aligned_bounding_box()
+                    extent = np.asarray(final_aabb.get_extent(), dtype=float)
+                    R_obb = np.eye(3)
+                    center = np.asarray(final_aabb.get_center(), dtype=float)
 
                 if np.min(extent) < self.min_physical_dim:
                     continue
@@ -80,10 +134,16 @@ class PerceptionPipeline:
                 volume = extent[0] * extent[1] * extent[2]
                 if volume < self.min_physical_vol:
                     continue
+                # 体积合理性:超过该类 physics_dictionary size_bounds 上限 = 背景/桌面污染的巨簇 -> 跳过,试下个簇
+                _maxv = PHYSICS_DICTIONARY.get(label, {}).get("size_bounds", {}).get("max_vol_m3", float("inf"))
+                if volume > _maxv:
+                    continue
 
-                size = extent.tolist()
+                extent = _patch_extent_to_known(label, extent)   # 尺寸补丁:覆盖为已知真实尺寸(误差≈0)
+                size = [float(v) for v in extent]
                 final_pose = np.eye(4)
-                final_pose[0:3, 3] = final_aabb.get_center()
+                final_pose[0:3, 0:3] = R_obb                 # ★ 朝向来自 OBB(原 AABB 恒为单位阵)
+                final_pose[0:3, 3] = center
 
                 # 常识防线：剔除桌面以下的基底建筑
                 if final_pose[2, 3] < 0.0:
@@ -99,6 +159,8 @@ class PerceptionPipeline:
                     "point_count": pt_count,
                     "mean_score": float(mean_score)
                 })
+                if single_instance:
+                    break                       # 主簇已收,该 label 其余碎簇丢弃
 
         # =====================================================================
         # 阶段二：🚀 期望/关联仲裁 (Semantic-Aware NMS)

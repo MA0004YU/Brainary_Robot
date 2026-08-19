@@ -62,6 +62,12 @@ class FeedbackTranslator:
 
             prompt += f"- 碰撞实体: [{actor0}] 与 [{actor1}] 发生了计划外的刚体几何干涉。\n"
 
+            # 量化数据:接触力(N)+ 穿透深度(mm)—— 供 planner 判断严重程度、需退让多少
+            _f = getattr(feedback_obj, "max_force_N", 0.0) or 0.0
+            _pen = getattr(feedback_obj, "penetration_mm", 0.0) or 0.0
+            if _f > 0 or _pen > 0:
+                prompt += f"- 量化: 接触力 {_f:.1f}N,几何干涉(穿透)深度 {_pen:.1f}mm(即至少需让开约 {_pen:.1f}mm)。\n"
+
             # ✅ 修复空值异常：区分是“事后真实碰撞坐标”还是“事前规划预判”
             if raw_xyz is not None:
                 xyz = np.round(raw_xyz, 3)
@@ -69,6 +75,9 @@ class FeedbackTranslator:
             else:
                 prompt += f"- 绝对坐标: 预判拦截 (轨迹规划阶段发现必将发生深度穿模)。\n"
 
+            _n = getattr(feedback_obj, "note", "")
+            if _n:
+                prompt += f"- 连带: {_n}\n"
             if "finger" in actor0 or "finger" in actor1:
                 prompt += (f"💡 [因果分析与修正建议]:\n"
                            f"夹爪末端即将或已经直接撞击表面。请利用上方的【空间对齐诊断】数据修正你的抓取/放置坐标。\n")
@@ -76,6 +85,29 @@ class FeedbackTranslator:
                 prompt += f"💡 [因果分析与修正建议]: 负载在移动中发生扫碰，或目标位置 (drop_height) 存在物理干涉。建议调整拓扑顺序，或修正安全高度。\n"
             else:
                 prompt += f"💡 [因果分析与修正建议]: 机械臂避障净空不足。建议重新审视场景布局或提高悬停高度。\n"
+
+        elif error_type in ("CARRY_PATH_BLOCKED", "KINEMATIC_OCCLUSION", "Z_APPROACH_BLOCKED"):
+            # 运动规划失败:量化"被什么挡、差多少、是否超臂展",让 planner 精准调整(错开投放/换篮/换顺序)
+            nb = getattr(feedback_obj, "nearest_obstacle", "") or "?"
+            od = getattr(feedback_obj, "obstacle_dist_mm", 0.0) or 0.0
+            clr = getattr(feedback_obj, "clearance_mm", 0.0) or 0.0
+            reach = getattr(feedback_obj, "reach_mm", 0.0) or 0.0
+            _kind = {"CARRY_PATH_BLOCKED": "搬运至目标上方的路径被阻挡",
+                     "KINEMATIC_OCCLUSION": "抓取悬停位无碰撞逆解/路径",
+                     "Z_APPROACH_BLOCKED": "垂直下探路径被阻挡"}[error_type]
+            prompt += f"- 规划失败: {_kind}(mplib 未能求出无碰撞路径)。\n"
+            prompt += f"- 量化: 目标水平距 base {reach:.0f}mm(臂展约 850mm{'; ⚠超出臂展、够不到' if reach > 850 else ''})。\n"
+            if nb and nb != "?":
+                _ov = "已重叠" if clr < 0 else "净空不足"
+                prompt += f"- 最近障碍物: [{nb}] 距目标中心 {od:.0f}mm、净空 {clr:.0f}mm({_ov})。\n"
+            prompt += f"- 诊断: {getattr(feedback_obj, 'note', '')}\n"
+            if reach > 850:
+                prompt += "💡 [因果分析与修正建议]: 目标超出机械臂可达范围。请换一个更近的目标/篮子,或跳过该动作。\n"
+            elif clr < 0 or (nb and nb != '?'):
+                prompt += (f"💡 [因果分析与修正建议]: 目标位置被 [{nb}] 占据/阻挡(常见于往【已放入物体】的篮子里再放)。"
+                           f"请:①把该物体投放到篮内【空位】(相对篮心偏移 ≥ {max(60, abs(clr)):.0f}mm);②或换一个空篮;③或调整拓扑顺序。\n")
+            else:
+                prompt += "💡 [因果分析与修正建议]: 悬停/下探高度或姿态受阻,建议提高悬停高度或调整接近姿态。\n"
 
         # ---------------------------------------------------------------------
         # 探针二：刚度极限与结构破坏 (MECHANICAL_DESTRUCTION)
@@ -93,6 +125,12 @@ class FeedbackTranslator:
 
             prompt += f"- 破坏现场: 预期瞬时法向挤压力达到 {force}N，超出了物体的安全屈服极限 ({limit}N)。\n"
             prompt += f"- 施力源头: [{culprit}]\n"
+            _pair = getattr(feedback_obj, "contact_pair", None)
+            if _pair and len(_pair) >= 2:
+                prompt += f"- 接触对: [{_pair[0]}] ↔ [{_pair[1]}]\n"
+            _n = getattr(feedback_obj, "note", "")
+            if _n:
+                prompt += f"- 连带: {_n}\n"
             prompt += (f"💡 [因果分析与修正建议]:\n"
                        f"典型的【夹具/碰撞碎裂】现象！你的设定宽度过小或发生了剧烈的运动学碰撞，导致物理引擎预估产生了毁灭性的挤压力。\n"
                        f"必须确保 `target_width` 贴近目标物体的实际物理厚度，严禁强行闭合。如果是路径碰撞，请提高悬停高度。")
@@ -116,6 +154,9 @@ class FeedbackTranslator:
             tilt = round(getattr(feedback_obj, "tilt_angle_deg", 0.0), 1)
             limit = round(getattr(feedback_obj, "max_allowed_angle", 0.0), 1)
             prompt += f"- 坍塌源头: 实体 [{culprit}] 发生了 {tilt}° 的倾覆滑落 (系统允许上限: {limit}°)。\n"
+            _n = getattr(feedback_obj, "note", "")
+            if _n:
+                prompt += f"- 连带: {_n}\n"
             prompt += f"💡 [因果分析与修正建议]: 目标未能形成稳定支撑。避免“大物叠小物”，优化放置策略。"
 
         # ---------------------------------------------------------------------
@@ -124,7 +165,14 @@ class FeedbackTranslator:
         elif error_type == "KINEMATIC_DYNAMIC_DEADLOCK":
             j_id = getattr(feedback_obj, "saturated_joint_id", "Unknown")
             torque = round(getattr(feedback_obj, "current_torque_Nm", 0.0), 2)
-            prompt += f"- 饱和关节: Joint_{j_id} | 瞬时扭矩飙升至 {torque}Nm。\n"
+            tlim = round(getattr(feedback_obj, "max_torque_limit_Nm", 0.0), 2)
+            terr = round(getattr(feedback_obj, "tracking_error_rad", 0.0), 3)
+            over = round(torque - tlim, 2)
+            prompt += (f"- 饱和关节: Joint_{j_id} | 瞬时扭矩 {torque}Nm(上限 {tlim}Nm,超载 {over}Nm)| "
+                       f"位置跟踪误差 {terr}rad(使出最大力矩仍差 {terr}rad 到不了位=卡死/超载)。\n")
+            _n = getattr(feedback_obj, "note", "")
+            if _n:
+                prompt += f"- 连带: {_n}\n"
             prompt += f"💡 [因果分析与修正建议]: 机械臂由于奇异点或距离过远导致逆运动学无解或动力学超载。建议调整工作域或姿态。"
 
         # =====================================================================

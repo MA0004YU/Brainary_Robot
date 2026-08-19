@@ -42,7 +42,7 @@ class SimInterface:
     @classmethod
     def launch(cls, *, headless: bool = True, device: str = "cuda:0", seed: int = 1,
                enable_force: bool = True, settle: int = 15, scene_registry_path=None,
-               _app_launcher=None) -> "SimInterface":
+               camera_resolution=None, tracked_objects=(), _app_launcher=None) -> "SimInterface":
         """启动场景并返回接口。相机+深度默认开;enable_force 挂接触力传感器。device 必须 cuda:0。
 
         ★ 场景【复刻 test_mode_ui 的默认搭建】:spawn 水果/YCB 道具 + L桌 + 3个KLT篮子,
@@ -52,6 +52,11 @@ class SimInterface:
         scene_registry_path:None=默认加载 v1_active 最新场景;指定某个保存场景目录的
           scene_v1_registry.json 即加载/摆放那个独立场景的布局(道具照样先 spawn,再由该场景
           的 manifest 把它们摆到保存位置)——等价于 test_mode_ui --scene_registry <path>。
+
+        camera_resolution:(W,H) 覆盖相机渲染分辨率(默认 640x480)。前视相机离桌面 ~2.4m,
+          做 FoundationPose 识别时建议 1280x1280,否则物体只有十几个像素。
+        tracked_objects:要出世界系 GT 位姿的物体名(observe().foundationpose.object_gt_poses),
+          默认 cube_1/2/3+knife;桌面道具场景传 ('Prop_011_banana', ...) 即可跟踪道具。
         """
         import re
         from franka_v1_skill_lab.scene import V1_BASE_TASK_ID
@@ -130,6 +135,10 @@ class SimInterface:
             exclude_members=tuple(sorted(_exclude)),   # 排除 manifest 里没有的家电(含默认冰箱/洗碗机)
             disable_auto_reset=True, hidden_members=_hidden,   # manifest 里删掉的方块移出场景外
         )
+        if camera_resolution:                      # FoundationPose 远视角需要高分辨率
+            cfg.camera_resolution = tuple(int(v) for v in camera_resolution)
+        if tracked_objects:                        # GT 位姿跟踪目标(桌面道具/契约方块)
+            cfg.tracked_objects = tuple(tracked_objects)
         session = SceneSession.launch(cfg, _app_launcher=_app_launcher)
         try:
             from franka_v1_skill_lab.scene_interface import camera_offsets

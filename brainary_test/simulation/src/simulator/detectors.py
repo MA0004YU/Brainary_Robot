@@ -46,6 +46,7 @@ class TippingFeedback:
     culprit_actor: str = ""
     tilt_angle_deg: float = 0.0
     max_allowed_angle: float = 0.0
+    note: str = ""
 
     def to_dict(self): return asdict(self)
 
@@ -56,6 +57,15 @@ class IntrusionFeedback:
     timestamp: float = 0.0
     collided_pair: List[str] = None
     collision_xyz: List[float] = None
+    # 量化字段(供 planner 精准重规划):
+    max_force_N: float = 0.0            # 碰撞瞬时接触力
+    penetration_mm: float = 0.0        # 穿透深度(几何干涉多少 mm)
+    nearest_obstacle: str = ""         # 规划失败时:最近障碍物
+    obstacle_dist_mm: float = 0.0      # 目标到最近障碍物中心距离
+    clearance_mm: float = 0.0          # 净空(<0=重叠;需至少腾出多少 mm)
+    reach_mm: float = 0.0              # 目标到机器人 base 的水平距离(判断是否超臂展)
+    displacement_cm: float = 0.0       # 目标相对初始位置被撞动多少 cm(级联)
+    note: str = ""
 
     def to_dict(self): return asdict(self)
 
@@ -68,6 +78,7 @@ class DeadlockKinematicFeedback:
     current_torque_Nm: float = 0.0
     max_torque_limit_Nm: float = 0.0
     tracking_error_rad: float = 0.0
+    note: str = ""
 
     def to_dict(self): return asdict(self)
 
@@ -78,15 +89,20 @@ class PhysicsBoundaryDetectors:
         self.thresholds = config["detector_thresholds"]
         self.robot_limits = config["robot_config"]
         self.dt = config["simulator_config"]["time_step"]
-        self.strict_safety_margin = 0.85
+        self.strict_safety_margin = 0.95   # 触发点=真限值×此系数(<1 会提前触发/易误报);0.95=留5%缓冲,贴近真限值
         self.initial_stable_z_axes = {}
 
-    def check_stiffness_and_destruction(self, scene: sapien.Scene, physics_dict: Dict[str, Any], current_time: float) -> \
-    Optional[DestructionFeedback]:
+    def check_stiffness_and_destruction(self, scene: sapien.Scene, physics_dict: Dict[str, Any], current_time: float,
+                                        skip_names=()) -> Optional[DestructionFeedback]:
+        # skip_names:当前正在【抓取/夹持】的目标——魔法吸附靠运动学持物、从不挤压它,所以夹爪/手指与该物体
+        # 的接触是抓取本身(预期的),不算"夹碎";放置沉降/搬运撞别的物体仍照常检测。
+        skip = set(n for n in skip_names if n)
         for contact in scene.get_contacts():
             actor0, actor1 = contact.bodies[0].entity, contact.bodies[1].entity
             name0, name1 = actor0.name, actor1.name
 
+            if name0 in skip or name1 in skip:
+                continue
             if name0 in ["ground", "camera_mount", "operating_table"] or name1 in ["ground", "camera_mount",
                                                                                    "operating_table"]:
                 continue
@@ -144,26 +160,35 @@ class PhysicsBoundaryDetectors:
         return None
 
     def check_unexpected_collision(self, scene: sapien.Scene, robot_name_prefix: str, expected_target: str,
-                                   current_time: float) -> Optional[IntrusionFeedback]:
+                                   current_time: float, held_name: str = "") -> Optional[IntrusionFeedback]:
+        # 侵入源 = 【整条机械臂】(名字含 robot_name_prefix="panda":link0-7 + hand + 双指)+【被夹持的物体】
+        # (held_name;魔法吸附后它随臂移动,撞到任何东西也要停)。任一侵入源与"意料之外"的物体发生
+        # 超力接触即报错 -> 满足"任何时刻、任何位置的碰撞都及时停下"。
         max_force = self.thresholds["unplanned_collision_force"] * self.strict_safety_margin
         for contact in scene.get_contacts():
             name0, name1 = contact.bodies[0].entity.name, contact.bodies[1].entity.name
-            is_0_robot = robot_name_prefix in name0
-            is_1_robot = robot_name_prefix in name1
+            is_0_robot = robot_name_prefix in name0 or (held_name and name0 == held_name)
+            is_1_robot = robot_name_prefix in name1 or (held_name and name1 == held_name)
 
             if not is_0_robot and not is_1_robot: continue
 
             env_actor = name1 if is_0_robot else name0
-            if env_actor in [expected_target, "ground", "operating_table"] or robot_name_prefix in env_actor:
+            # 允许的接触:正在抓/放的目标、地面、桌面、机械臂自身、被夹物体自身(夹爪抱着它/它就是被夹的)
+            if env_actor in [expected_target, "ground", "operating_table", held_name] \
+                    or robot_name_prefix in env_actor:
                 continue
 
             for point in contact.points:
                 force_N = np.linalg.norm(point.impulse) / self.dt
                 if force_N > max_force:
+                    pen_mm = max(0.0, -float(getattr(point, "separation", 0.0))) * 1000.0
                     return IntrusionFeedback(
                         timestamp=current_time,
                         collided_pair=[name0, name1],
-                        collision_xyz=point.position.tolist()
+                        collision_xyz=point.position.tolist(),
+                        max_force_N=float(force_N),
+                        penetration_mm=float(pen_mm),
+                        note=f"[{name0}] 与 [{name1}] 超力接触({force_N:.1f}N > 红线 {max_force:.1f}N),几何干涉约 {pen_mm:.1f}mm",
                     )
         return None
 

@@ -91,20 +91,40 @@ class BrainaryAPI:
         self._sim = sim                       # 底层 SimInterface 实例
         self._last_grasped: Optional[str] = None   # 记录当前手里夹着的物体(供 place 判"是否真落进篮子")
         # 只保留【本场景里确实存在】的可抓物体/篮子(按物理存在过滤,不虚报)
-        self._graspable = [o for o in GRASPABLE_LABELS if sim.get_object_pose(o) is not None]
+        self._graspable = [o for o in GRASPABLE_LABELS if self._is_reachable_object_pose(sim.get_object_pose(o))]
         self._baskets = [b for b in BASKET_LABELS if sim._resolve_place_pos(b) is not None]
+
+    @staticmethod
+    def _is_reachable_object_pose(pose: Optional[dict]) -> bool:
+        if pose is None:
+            return False
+        try:
+            pos = pose["position"]
+            if max(abs(float(pos[0])), abs(float(pos[1]))) > 50.0:
+                return False
+            if not (-1.0 < float(pos[2]) < 5.0):
+                return False
+        except Exception:
+            return False
+        return True
 
     # ==================================================================================
     #  启动 / 关闭 / 复位
     # ==================================================================================
     @classmethod
     def launch(cls, *, headless: bool = True, device: str = "cuda:0", seed: int = 1,
-               settle: int = 15, _app_launcher=None) -> "BrainaryAPI":
-        """启动 brainary_test 场景并返回接口。device 必须 cuda:0。headless=True 无窗口。"""
+               settle: int = 15, camera_resolution=None, tracked_objects=(),
+               _app_launcher=None) -> "BrainaryAPI":
+        """启动 brainary_test 场景并返回接口。device 必须 cuda:0。headless=True 无窗口。
+
+        camera_resolution:(W,H) 覆盖相机分辨率(FoundationPose 识别用 1280x1280 更稳)。
+        tracked_objects:要出世界系 GT 位姿的物体名(给 FoundationPose 当注册/对比参考)。
+        """
         from sim_interface import SimInterface
         sim = SimInterface.launch(
             headless=headless, device=device, seed=seed, enable_force=True, settle=settle,
-            scene_registry_path=SCENE_REGISTRY, _app_launcher=_app_launcher,
+            scene_registry_path=SCENE_REGISTRY, camera_resolution=camera_resolution,
+            tracked_objects=tracked_objects, _app_launcher=_app_launcher,
         )
         return cls(sim)
 

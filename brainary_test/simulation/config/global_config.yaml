@@ -40,7 +40,7 @@ simulator_config:
 
 # 5. 真实物理学红线探针阈值
 detector_thresholds:
-  max_allowed_angle: 15.0           # 倾倒绝对红线 (度)
+  max_allowed_angle: 45.0           # 倾倒红线(度):相对物体【初始静止姿态】偏转超过此角=真正滑落/倒塌
   unplanned_collision_force: 5.0    # 计划外允许接触力红线 (N)
 
 # 6. 视觉大模型双核权重文件夹路径

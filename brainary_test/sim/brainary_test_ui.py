@@ -25,6 +25,36 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))   # 本目录:import brainary_api
 
 
+# 执行速度 5 档。这一档同时决定【抓/放执行器速度】和【IK 每步关节限幅】,
+# 也就是所有动作(抓取/放置/回home/开合爪)最终跑起来的快慢。
+_SPEED_OPTS = [("1 - Very slow 极慢 (0.5x)", 0.5),
+               ("2 - Slow 慢 (0.75x)", 0.75),
+               ("3 - Normal 正常 (1.0x)", 1.0),
+               ("4 - Fast 快 (2.0x)", 2.0),
+               ("5 - Fastest 最快 (5.0x)", 5.0)]
+_SPEED_DEFAULT_IDX = 2      # 默认 Normal 1.0x(3.0 会把 max_joint_step 顶到 0.5rad,偏快易撞飞物体)
+
+
+def _apply_speed_to(sim, speed: float) -> float:
+    """把速度档落到技能全局 scale + 抓/放执行器 + IK 每步限幅上。每次执行动作前调用。"""
+    import os
+    os.environ["SKILL_TEST_SPEED"] = str(speed)
+    os.environ["SKILL_TEST_RUNNER_SPEED"] = str(speed)
+    try:
+        from base_skill import set_speed_scale
+        set_speed_scale(speed)
+    except Exception as exc:
+        print(f"[brainary_ui] set_speed_scale: {exc}", flush=True)
+    try:
+        ctrl = getattr(getattr(sim, "_sim", None), "_ctrl", None)
+        if ctrl is not None:
+            ctrl._runner_speed = max(0.5, float(speed))
+            ctrl._apply_speed_to_adapter()
+    except Exception as exc:
+        print(f"[brainary_ui] apply runner speed: {exc}", flush=True)
+    return speed
+
+
 class BrainaryGraspPanel:
     """调 BrainaryAPI 的抓/放面板。按钮置 pending,主循环 run_pending() 阻塞执行并显示结果。"""
 
@@ -43,6 +73,14 @@ class BrainaryGraspPanel:
         with self.window.frame:
             with ui.VStack(spacing=6, height=0):
                 ui.Label("== BrainaryAPI 抓取 / 放置测试 ==")
+                # 执行速度:对【所有动作】生效(抓取/放置/连贯/回home/开合爪),运行前即时下发
+                with ui.HStack(spacing=6, height=24):
+                    ui.Label("执行速度 Speed:", width=110)
+                    self._models["speed"] = ui.ComboBox(
+                        _SPEED_DEFAULT_IDX, *[lab for lab, _ in _SPEED_OPTS]).model
+                self._speed_label = ui.Label(
+                    f"  当前: {_SPEED_OPTS[_SPEED_DEFAULT_IDX][0]}  (影响所有动作的执行快慢)")
+                ui.Separator()
                 ui.Label(f"抓取目标 ({len(self._graspable)})")
                 self._models["grasp"] = ui.ComboBox(0, *self._g_show).model
                 ui.Button("Grasp(抓取)", clicked_fn=lambda: self._set("grasp"))
@@ -85,6 +123,20 @@ class BrainaryGraspPanel:
         self.sim.stop()
         self._status.text = "status: STOP requested(中止请求已发,技能会尽快停下)"
 
+    def _apply_speed(self) -> float:
+        """读下拉档位 -> 下发。返回实际速度倍率。"""
+        m = self._models.get("speed")
+        i = int(m.get_item_value_model().get_value_as_int()) if m else _SPEED_DEFAULT_IDX
+        i = max(0, min(i, len(_SPEED_OPTS) - 1))
+        label, speed = _SPEED_OPTS[i]
+        _apply_speed_to(self.sim, speed)
+        try:
+            self._speed_label.text = f"  当前: {label}  (影响所有动作的执行快慢)"
+        except Exception:
+            pass
+        print(f"[brainary_ui] 执行速度 -> {label}", flush=True)
+        return speed
+
     def _sel(self, key, names):
         m = self._models.get(key)
         if m is None or not names:
@@ -125,6 +177,7 @@ class BrainaryGraspPanel:
             return
         kind = self._pending
         self._pending = None
+        spd = self._apply_speed()                     # 所有动作统一按当前档位跑
         try:
             if kind == "grasp":
                 obj = self._sel("grasp", self._graspable)

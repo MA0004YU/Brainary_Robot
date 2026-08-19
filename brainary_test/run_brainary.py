@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -56,6 +57,58 @@ _CATEGORY = {
 }
 _SORT_RULES = {"水果": "Prop_KLT_3", "工具": "Prop_KLT_1", "杯具": "Prop_KLT_2", "食品": "Prop_KLT_1"}
 _VALID_CATS = {"水果", "工具", "杯具", "食品"}
+
+# ---------------------------------------------------------------------
+# 规范名归一化:GPT(scene_describer)每次给的物体名都在漂移(orange_ball/snack_bag/blue_cup/red_carton…),
+# 导致 ① 规划器按名字语义判断不稳(把 orange_ball 当"玩具球"丢掉)② 执行器手工别名表跟不上新名 -> 跳过。
+# 这里把 GPT 自由名统一解析到【场景规范名】(经别名表/关键词 -> Prop -> 规范名),让规划器/执行器看到稳定名。
+# ---------------------------------------------------------------------
+_PROP_TO_CANONICAL = {
+    "Prop_SM_Mug_C1": "yellow_mug", "Prop_SM_Mug_D1": "blue_mug",
+    "Prop_011_banana": "banana", "Prop_orange_01": "orange",
+    "Prop_037_scissors": "scissors", "Prop_003_cracker_box": "cracker_box",
+    "Prop_010_potted_meat_can": "meat_can",
+}
+
+
+def _load_object_aliases() -> dict:
+    try:
+        raw = json.loads((_BRAINARY / "project_management" / "object_aliases.json").read_text(encoding="utf-8"))
+        return {str(k).strip().lower(): str(v) for k, v in raw.items()}
+    except Exception:
+        return {}
+
+
+_OBJ_ALIASES = _load_object_aliases()
+
+
+def _keyword_prop(low: str):
+    """GPT 新名字的关键词兜底解析(别名表未命中时)。"""
+    if any(k in low for k in ("orange", "橙", "橘")):
+        return "Prop_orange_01"
+    if any(k in low for k in ("banana", "香蕉")):
+        return "Prop_011_banana"
+    if any(k in low for k in ("scissor", "剪")):
+        return "Prop_037_scissors"
+    if any(k in low for k in ("meat", "罐头")):
+        return "Prop_010_potted_meat_can"
+    if any(k in low for k in ("cracker", "snack", "carton", "package", "box", "bag", "盒", "袋", "饼干", "零食")):
+        return "Prop_003_cracker_box"
+    is_cup = any(k in low for k in ("mug", "cup", "杯"))
+    if is_cup and any(k in low for k in ("yellow", "黄")):
+        return "Prop_SM_Mug_C1"
+    if is_cup and any(k in low for k in ("blue", "蓝")):
+        return "Prop_SM_Mug_D1"
+    return None
+
+
+def _canonical_name(name: str) -> str:
+    """GPT 自由名 -> 场景规范名(orange_ball->orange, snack_bag->cracker_box…)。解析不到就原样返回。"""
+    if not name:
+        return name
+    low = str(name).strip().lower()
+    prop = _OBJ_ALIASES.get(low) or _keyword_prop(low)
+    return _PROP_TO_CANONICAL.get(prop, name) if prop else name
 # planning / monitor 直连中转 LLM(感知走 scene_describer:5599 另算)
 _RELAY_BASE = "https://165.154.193.90"
 _LLM_MODEL = "gpt-5.5"
@@ -104,6 +157,17 @@ def stage_sim(out_sim: Path, headless: bool, device: str, seed: int, app_launche
             view_files[name] = str(p)
         if depth is not None:
             np.save(out_sim / "depth" / f"{name}.npy", np.asarray(depth))
+    # 相机内外参 + 机械臂 base 位姿(供【离线物理校验/重放】:verify 要靠这些把点云转 base 系重建)
+    cam_params = {name: {"intrinsics": fr.get("intrinsics"), "pose_world": fr.get("pose")}
+                  for name, fr in (cams or {}).items()}
+    base_pose = None
+    try:
+        base_pose = sim.get_object_pose("robot")     # articulation root(panda_link0)世界位姿
+    except Exception:
+        pass
+    (out_sim / "camera_params.json").write_text(
+        json.dumps({"cameras": cam_params, "robot_base_pose_world": base_pose},
+                   ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     # 场景状态(物体位姿 + 机器人本体)
     state = {"task": _TASK_DEFAULT, "graspable": sim.list_graspable(), "baskets": sim.list_baskets(),
              "objects": {}, "robot": {}}
@@ -140,22 +204,22 @@ def _ensure_gpt_server(addr: str) -> bool:
     sd = _PERCEPTION / "scene_describer"
     venv_py = sd / ".venv_vlm" / "bin" / "python"
     if not venv_py.exists():
-        print(f"[brainary] 未找到 GPT venv({venv_py}),无法自动起服务器(见 README §3)。", flush=True)
+        print(f"[brainary] 未找到感知服务 venv({venv_py}),无法自动启动(见 README §3)。", flush=True)
         return False
     if not (os.environ.get("API_zhongzhuan") or os.environ.get("OPENAI_API_KEY")):
-        print("[brainary] 环境无 API_zhongzhuan/OPENAI_API_KEY,GPT 服务器起不来。", flush=True)
+        print("[brainary] 环境未配置 API 密钥,视觉大模型服务起不来。", flush=True)
         return False
     port = addr.rstrip("/").rsplit(":", 1)[-1]
     env = dict(os.environ); env["VLM_PORT"] = str(port)
-    print(f"[brainary] 自动启动 ChatGPT 感知服务器 {addr} ...", flush=True)
+    print(f"[brainary] 自动启动视觉大模型感知服务 {addr} ...", flush=True)
     subprocess.Popen([str(venv_py), "vlm_describe_server.py"], cwd=str(sd), env=env,
                      stdout=open("/tmp/brainary_vlm_server.log", "a"), stderr=subprocess.STDOUT)
     for _ in range(20):
         time.sleep(2)
         if _gpt_server_up(addr):
-            print("[brainary] ChatGPT 感知服务器已就绪。", flush=True)
+            print("[brainary] 视觉大模型感知服务已就绪。", flush=True)
             return True
-    print("[brainary] GPT 服务器启动超时。", flush=True)
+    print("[brainary] 感知服务启动超时。", flush=True)
     return False
 
 
@@ -178,18 +242,47 @@ def stage_perception(mode: str, out_perc: Path, sim, state: dict, view_files: di
                     buf = io.BytesIO(); Image.open(p).convert("RGB").save(buf, format="PNG")
                     return base64.b64encode(buf.getvalue()).decode("ascii")
 
-                payload = {"rgb_front_b64": _b64("front"), "rgb_wrist_b64": _b64("wrist"), "state": state.get("robot", {})}
+                # ★ 必须把【仿真真实存在的 id 清单】一起发过去:server 会据此把 objects[].name 收成
+                #   enum(严格 json_schema),GPT 只能从中选。以前只发 state["robot"],GPT 拿不到任何
+                #   候选名,只能自由起名(white_cup / yellow_curved_object …),下游 _resolve 靠别名表
+                #   硬猜、措辞一变就 unresolved -> 整条 grasp+place 连锁跳过。
+                candidates = (list(state.get("graspable", []))
+                              + [b for b in state.get("baskets", []) if b not in state.get("graspable", [])])
+                for _k in state.get("objects", {}):          # 场景里其余刚体(非可抓/非篮子)也允许被描述
+                    if _k not in candidates:
+                        candidates.append(_k)
+                # ★ 送图不能只给 front+wrist:front 离桌面 ~2.4m,每个物体才二三十像素、还被机械臂
+                #   挡住一半;wrist 是夹爪前方的特写,只看得到手边那一个物体,对"清点全桌物体"没用
+                #   (实测 ui_20260809_123703:这两路让香蕉/橘子直接漏检、饼干盒被糊成"一组红白小物体",
+                #   而剪刀因为占满 wrist 画面反而描述得很准 —— 正说明 wrist 会把注意力带偏)。
+                #   所以感知用【除腕部外的四路静态相机】,top(俯视)信息量最大放第一张。
+                #   BRAINARY_PERC_VIEWS 可改(逗号分隔)。
+                want = [v.strip() for v in
+                        os.environ.get("BRAINARY_PERC_VIEWS", "top,front,left,right").split(",") if v.strip()]
+                views = {v: _b64(v) for v in want}
+                views = {k: v for k, v in views.items() if v}          # 丢掉没拍到的
+                if not views:                                          # 极端兜底:至少给一张
+                    views = {k: v for k, v in (("front", _b64("front")),) if v}
+                print(f"[brainary] 感知送图 {len(views)} 路: {', '.join(views)}", flush=True)
+                payload = {"views": views, "state": state.get("robot", {}), "candidates": candidates}
                 resp = describe(payload, addr=gpt_addr)
                 if resp.get("ok"):
                     r = resp["result"]
+                    # name=="other" 是枚举里给"不在清单里的东西"留的出口(桌面/背景/幻觉):
+                    # 它不是可操作目标,丢掉,免得进记忆当物体、又被规划当 grasp target。
+                    _objs = [o for o in r.get("objects", [])
+                             if str(o.get("name", "")).strip().lower() != "other"]
+                    _drop = len(r.get("objects", [])) - len(_objs)
+                    if _drop:
+                        print(f"[brainary] 感知:丢弃 {_drop} 个 name='other' 的非目标对象", flush=True)
                     result = {"scene_summary": r.get("scene_summary", ""),
-                              "objects": r.get("objects", []), "relations": r.get("relations", []),
-                              "model": resp.get("model", "gpt")}
-                    used = "gpt (chatgpt/scene_describer:5599)"
+                              "objects": _objs, "relations": r.get("relations", []),
+                              "model": "大模型"}          # 不落具体模型名
+                    used = "视觉大模型 (scene_describer:5599)"
             except Exception as exc:
-                print(f"[brainary] GPT 感知失败,退回 GT-mock: {exc}", flush=True)
+                print(f"[brainary] 视觉感知失败,退回仿真真值: {exc}", flush=True)
         else:
-            print(f"[brainary] GPT 感知服务器 {gpt_addr} 未就绪 (启动见 README)。", flush=True)
+            print(f"[brainary] 感知服务 {gpt_addr} 未就绪 (启动见 README)。", flush=True)
     if result is None:
         # GT-mock:用仿真真值当感知(不联网,验证管线/无 key 时可跑)
         objs = []
@@ -198,13 +291,17 @@ def stage_perception(mode: str, out_perc: Path, sim, state: dict, view_files: di
             objs.append({"name": name, "category": _cat_of(name),
                          "appearance": "sim-GT", "location": "table",
                          "position": op.get("position")})
-        result = {"scene_summary": f"仿真GT感知:桌面 {len(objs)} 个可抓物 + {len(state.get('baskets', []))} 个篮子",
+        result = {"scene_summary": f"仿真真值感知:桌面 {len(objs)} 个可抓物 + {len(state.get('baskets', []))} 个篮子",
                   "objects": objs, "relations": [], "model": "sim-gt-mock"}
         used = "mock (仿真GT,未用ChatGPT)"
     result["perception_backend"] = used
-    # 归一 category 到分拣分类法:GPT 常给 'ball'/'package' 这类宽松标签,规划器会因其不在
-    # category_rules 里而丢弃物体(如橙子 orange_ball 被当'球'漏排)。用 name/appearance 关键词纠正。
+    # 归一 ① 规范名(orange_ball->orange, snack_bag->cracker_box…,让规划器/执行器看到稳定名)
+    #     ② category 到分拣分类法(GPT 给 'ball'/'package' 这类宽松标签会被规划器漏排)。
     for _o in result.get("objects", []):
+        _canon = _canonical_name(_o.get("name", ""))
+        if _canon != _o.get("name"):
+            print(f"[brainary] 规范名: {_o.get('name')} -> {_canon}", flush=True)
+            _o["name"] = _canon
         _fix = _normalize_category(_o)
         if _fix != "其他":
             _o["category"] = _fix

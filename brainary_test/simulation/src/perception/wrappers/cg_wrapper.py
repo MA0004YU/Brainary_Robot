@@ -91,8 +91,16 @@ class ConceptGraphsWrapper:
 
             if not np.any(mask): continue
 
-            obj_depths = depth_image[mask] / 1000.0
             v_indices, u_indices = np.where(mask)
+            obj_depths = depth_image[mask].astype(np.float64) / 1000.0
+            # 过滤无效深度(inf/nan/0/超量程):mask 边缘常含背景/无返回像素,back-project 后变成无穷远
+            # 杂点,污染点云 -> 融合后碎成大量幽灵簇。只保留有限、正、合理量程内的深度。
+            valid = np.isfinite(obj_depths) & (obj_depths > 0.05) & (obj_depths < 5.0)
+            obj_depths = obj_depths[valid]
+            u_indices = u_indices[valid]
+            v_indices = v_indices[valid]
+            if obj_depths.size < 50:
+                continue
 
             z = obj_depths
             x = (u_indices - cx) * z / fx
